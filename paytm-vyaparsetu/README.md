@@ -1,5 +1,9 @@
 # Paytm VyaparSetu
 
+## Setup & Verification Guide
+
+For full installation, environment configuration, database container launch, and testing instructions (including Sarvam standalone verification), see **[docs/SETUP_GUIDE.md](file:///c:/VyaparSetu/VyparSetu/paytm-vyaparsetu/docs/SETUP_GUIDE.md)**.
+
 ## Folder Skeleton & Architecture Overview
 
 ```

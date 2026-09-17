@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: vyaparsetu_postgres
+    environment:
+      POSTGRES_USER: vyapar_user
+      POSTGRES_PASSWORD: vyapar_pass
+      POSTGRES_DB: vyaparsetu_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vyapar_user -d vyaparsetu_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

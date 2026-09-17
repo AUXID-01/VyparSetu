@@ -29,7 +29,13 @@ Ensure you have the following installed on your system before proceeding:
 
 3. Open `.env` and set your actual Sarvam API key:
    ```env
-   # Database Configuration
+   # PostgreSQL Container Settings
+   POSTGRES_USER=vyapar_user
+   POSTGRES_PASSWORD=vyapar_pass
+   POSTGRES_DB=vyaparsetu_db
+   POSTGRES_PORT=5432
+
+   # Database Connection String
    DATABASE_URL=postgresql://vyapar_user:vyapar_pass@localhost:5432/vyaparsetu_db
 
    # External API Keys

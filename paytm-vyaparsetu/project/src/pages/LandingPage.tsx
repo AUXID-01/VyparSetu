@@ -1,18 +1,91 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Mic, CheckCircle2, ArrowRight, Code2, Database, Zap, Sparkles, Clock } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Mic, CheckCircle2, ArrowRight, Code2, Database, Zap, Sparkles, Clock, ScanLine, AlertTriangle } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+
+const DEMO_SCENARIOS = [
+  {
+    icon: Mic,
+    color: 'sage',
+    inputText: '"Record ₹2,400 from Suresh"',
+    confirmTitle: 'Action Confirmed',
+    confirmIcon: CheckCircle2,
+    confirmIconColor: 'text-positive',
+    confirmAvatar: 'S',
+    confirmName: 'Suresh',
+    confirmAmount: '+₹2,400',
+    confirmAmountColor: 'text-positive',
+    syncText: 'Syncing with ledger in background...'
+  },
+  {
+    icon: ScanLine,
+    color: 'teal',
+    inputText: 'Extracting line items from Challan...',
+    confirmTitle: 'Challan Extracted',
+    confirmIcon: CheckCircle2,
+    confirmIconColor: 'text-teal-600',
+    confirmAvatar: 'C',
+    confirmName: 'Total Invoice',
+    confirmAmount: '₹14,500',
+    confirmAmountColor: 'text-ink-800',
+    syncText: 'Checking prices against history...'
+  },
+  {
+    icon: Sparkles,
+    color: 'amber',
+    inputText: 'Analyzing recent vendor pricing...',
+    confirmTitle: 'Price Increase Alert',
+    confirmIcon: AlertTriangle,
+    confirmIconColor: 'text-amber-500',
+    confirmAvatar: '!',
+    confirmName: 'Sugar (50kg)',
+    confirmAmount: '+₹12/kg',
+    confirmAmountColor: 'text-amber-600',
+    syncText: 'Generating comparison report...'
+  },
+  {
+    icon: Clock,
+    color: 'indigo',
+    inputText: '"How much does Ramesh owe me?"',
+    confirmTitle: 'Ledger Fetched',
+    confirmIcon: CheckCircle2,
+    confirmIconColor: 'text-indigo-500',
+    confirmAvatar: 'R',
+    confirmName: 'Ramesh Dues',
+    confirmAmount: '₹5,200',
+    confirmAmountColor: 'text-danger',
+    syncText: 'Fetching latest real-time state...'
+  }
+];
 
 export const LandingPage: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
+  const [demoState, setDemoState] = useState<{ phase: 'IDLE' | 'LISTENING' | 'CONFIRMED', scenario: number }>({ phase: 'IDLE', scenario: 0 });
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
-    };
+    const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    let currentScenario = 0;
+    
+    const cycle = () => {
+      setDemoState({ phase: 'LISTENING', scenario: currentScenario });
+      setTimeout(() => {
+        setDemoState({ phase: 'CONFIRMED', scenario: currentScenario });
+        setTimeout(() => {
+          setDemoState({ phase: 'IDLE', scenario: currentScenario });
+          currentScenario = (currentScenario + 1) % DEMO_SCENARIOS.length;
+        }, 3500);
+      }, 3500);
+    };
+    
+    const interval = setInterval(cycle, 9000);
+    cycle(); // start immediately
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -42,102 +115,208 @@ export const LandingPage: React.FC = () => {
 
       {/* Hero Section */}
       <section className="pt-32 pb-20 px-6 max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-16">
-        <div className="flex-1 space-y-6 text-center lg:text-left">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-sage-50 text-sage-600 font-medium text-sm border border-sage-100">
+        <motion.div 
+          initial={{ opacity: 0, x: -30 }} 
+          animate={{ opacity: 1, x: 0 }} 
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="flex-1 space-y-6 text-center lg:text-left"
+        >
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-sage-50 text-sage-600 font-medium text-sm border border-sage-100"
+          >
             <Sparkles className="w-4 h-4" /> Merchant intelligence, without the complexity.
-          </div>
+          </motion.div>
           <h1 className="text-5xl lg:text-7xl font-bold tracking-tight text-balance leading-[1.1]">
             Your business conversations, <span className="text-sage-600">turned into action.</span>
           </h1>
-          <p className="text-lg text-ink-500 max-w-2xl mx-auto lg:mx-0 leading-relaxed text-balance">
+          <motion.p 
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
+            className="text-lg text-ink-500 max-w-2xl mx-auto lg:mx-0 leading-relaxed text-balance"
+          >
             Record credit, process challans, track dues, automate settlements, and understand your business — without slowing down the counter.
-          </p>
-          <div className="flex items-center justify-center lg:justify-start gap-4 pt-4">
+          </motion.p>
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
+            className="flex items-center justify-center lg:justify-start gap-4 pt-4"
+          >
             <Link to="/dashboard">
-              <Button size="lg" className="h-14 px-8 text-base shadow-lg shadow-sage-500/20">Explore Dashboard</Button>
+              <Button size="lg" className="h-14 px-8 text-base shadow-lg shadow-sage-500/20 hover:scale-105 transition-transform">Explore Dashboard</Button>
             </Link>
             <a href="#how-it-works">
-              <Button size="lg" variant="ghost" className="h-14 px-8 text-base">See How It Works</Button>
+              <Button size="lg" variant="ghost" className="h-14 px-8 text-base hover:bg-cream-200 transition-colors">See How It Works</Button>
             </a>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
 
         {/* Hero Interactive Visual */}
-        <div className="flex-1 w-full max-w-md relative">
+        <motion.div 
+          initial={{ opacity: 0, x: 30 }} 
+          animate={{ opacity: 1, x: 0 }} 
+          transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
+          className="flex-1 w-full max-w-md relative"
+        >
           <div className="absolute inset-0 bg-gradient-sage rounded-[2.5rem] transform rotate-3 opacity-50 blur-xl" />
           <div className="bg-white rounded-[2rem] border border-cream-200 shadow-float p-8 relative z-10 flex flex-col items-center">
             
-            <div className="w-full flex justify-between items-center mb-12">
-              <div className="w-12 h-3 bg-cream-200 rounded-full" />
-              <div className="w-8 h-8 rounded-full bg-cream-100" />
+            <div className="absolute top-0 inset-x-0 h-1 bg-cream-100 rounded-t-[2rem] overflow-hidden">
+               <motion.div 
+                 animate={{ x: ['-200%', '200%'] }} 
+                 transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+                 className={`w-1/2 h-full bg-${DEMO_SCENARIOS[demoState.scenario].color}-500 blur-sm`}
+               />
+            </div>
+
+            <div className="w-full flex justify-between items-center mb-10 mt-2">
+              <div className="flex gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-cream-200 hover:bg-danger transition-colors cursor-pointer" />
+                <div className="w-3 h-3 rounded-full bg-cream-200 hover:bg-amber-400 transition-colors cursor-pointer" />
+                <div className="w-3 h-3 rounded-full bg-cream-200 hover:bg-positive transition-colors cursor-pointer" />
+              </div>
+              
+              <div className={`flex items-center gap-2 px-3 py-1 rounded-full border shadow-sm transition-colors duration-500
+                ${demoState.phase === 'LISTENING' ? `bg-${DEMO_SCENARIOS[demoState.scenario].color}-50 text-${DEMO_SCENARIOS[demoState.scenario].color}-600 border-${DEMO_SCENARIOS[demoState.scenario].color}-200` 
+                : 'bg-cream-50 text-ink-400 border-cream-200'}`}
+              >
+                <div className={`w-2 h-2 rounded-full transition-colors duration-500
+                  ${demoState.phase === 'LISTENING' ? `bg-${DEMO_SCENARIOS[demoState.scenario].color}-500 animate-ping` : 'bg-ink-300'}`} 
+                />
+                <span className="text-[10px] font-bold uppercase tracking-wider">
+                   {demoState.phase === 'IDLE' ? 'System Ready' : demoState.phase === 'LISTENING' ? 'Active' : 'Standby'}
+                </span>
+              </div>
             </div>
 
             {/* Simulated Interaction sequence using CSS animation delays for simplicity in Landing Page */}
-            <div className="relative w-full aspect-square flex flex-col items-center justify-center">
+            <div className="relative w-full h-64 flex flex-col items-center justify-center">
                
-               <div className="w-24 h-24 rounded-full bg-sage-50 text-sage-500 flex items-center justify-center shadow-inner mb-6 relative">
-                 <Mic className="w-10 h-10" />
-                 <div className="absolute inset-0 rounded-full border-2 border-sage-200 animate-ping" />
-               </div>
+              <motion.div 
+                animate={{ 
+                  scale: demoState.phase === 'LISTENING' ? [1, 1.1, 1] : 1,
+                  boxShadow: demoState.phase === 'LISTENING' 
+                    ? [`0px 0px 0px 0px var(--tw-shadow-color)`, `0px 0px 0px 20px rgba(0,0,0,0)`, `0px 0px 0px 0px rgba(0,0,0,0)`] 
+                    : 'none'
+                }}
+                transition={{ duration: 1.5, repeat: demoState.phase === 'LISTENING' ? Infinity : 0 }}
+                className={`w-24 h-24 rounded-full flex items-center justify-center shadow-inner mb-8 transition-colors duration-500 z-10 
+                  ${demoState.phase === 'LISTENING' ? `bg-${DEMO_SCENARIOS[demoState.scenario].color}-100 text-${DEMO_SCENARIOS[demoState.scenario].color}-600 shadow-${DEMO_SCENARIOS[demoState.scenario].color}-400/50` : 'bg-cream-100 text-ink-400'}`}
+              >
+                {React.createElement(DEMO_SCENARIOS[demoState.scenario].icon, { className: "w-10 h-10" })}
+              </motion.div>
 
-               <div className="text-center space-y-2 relative h-16 w-full">
-                 <motion.div 
-                    initial={{ opacity: 1 }} animate={{ opacity: [1, 0] }} transition={{ delay: 2, duration: 0.5 }}
-                    className="absolute inset-0"
-                  >
-                   <p className="text-sage-600 font-medium">Listening...</p>
-                 </motion.div>
-                 
-                 <motion.div 
-                    initial={{ opacity: 0 }} animate={{ opacity: [0, 1] }} transition={{ delay: 2.5, duration: 0.5 }}
-                    className="absolute inset-0 flex flex-col items-center"
-                  >
-                   <p className="text-ink-800 font-semibold text-lg flex items-center justify-center gap-2">
-                     <CheckCircle2 className="w-5 h-5 text-positive" /> Confirmed
-                   </p>
-                   <p className="text-ink-500 text-sm mt-1">₹2,400 credit recorded</p>
-                 </motion.div>
-               </div>
+              <div className="h-24 w-full flex flex-col items-center justify-start relative">
+                <AnimatePresence mode="wait">
+                  {demoState.phase === 'IDLE' && (
+                    <motion.div key="idle" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="text-ink-400 text-sm">
+                      Waiting for input...
+                    </motion.div>
+                  )}
+                  {demoState.phase === 'LISTENING' && (
+                    <motion.div key="listening" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="text-center w-full">
+                      <div className="flex items-center justify-center gap-1 mb-3">
+                        {[1, 2, 3, 4, 5].map(i => (
+                          <motion.div key={i} animate={{ height: [8, 20, 8] }} transition={{ duration: 1, repeat: Infinity, delay: i * 0.15 }} className={`w-1.5 bg-${DEMO_SCENARIOS[demoState.scenario].color}-400 rounded-full`} />
+                        ))}
+                      </div>
+                      <p className={`text-${DEMO_SCENARIOS[demoState.scenario].color}-700 font-medium font-serif italic text-lg px-4 truncate`}>
+                        {DEMO_SCENARIOS[demoState.scenario].inputText}
+                      </p>
+                    </motion.div>
+                  )}
+                  {demoState.phase === 'CONFIRMED' && (
+                    <motion.div key="confirmed" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="flex flex-col items-center w-full px-4">
+                      <div className={`flex items-center gap-2 font-semibold text-lg mb-3 ${DEMO_SCENARIOS[demoState.scenario].confirmIconColor}`}>
+                        {React.createElement(DEMO_SCENARIOS[demoState.scenario].confirmIcon, { className: "w-6 h-6" })} 
+                        {DEMO_SCENARIOS[demoState.scenario].confirmTitle}
+                      </div>
+                      <div className="bg-white border border-cream-200 shadow-sm rounded-xl px-4 py-2 flex items-center gap-4 w-full max-w-[240px]">
+                         <div className={`w-10 h-10 rounded-full bg-${DEMO_SCENARIOS[demoState.scenario].color}-50 text-${DEMO_SCENARIOS[demoState.scenario].color}-600 flex items-center justify-center font-bold text-sm shrink-0`}>
+                           {DEMO_SCENARIOS[demoState.scenario].confirmAvatar}
+                         </div>
+                         <div className="text-left flex-1 min-w-0">
+                           <div className="text-xs text-ink-500 truncate">{DEMO_SCENARIOS[demoState.scenario].confirmName}</div>
+                           <div className={`text-sm font-bold ${DEMO_SCENARIOS[demoState.scenario].confirmAmountColor}`}>
+                             {DEMO_SCENARIOS[demoState.scenario].confirmAmount}
+                           </div>
+                         </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
 
-            <motion.div 
-               initial={{ opacity: 0 }} animate={{ opacity: [0, 1] }} transition={{ delay: 3, duration: 0.5 }}
-               className="w-full bg-cream-50 rounded-xl p-3 flex items-center gap-3 mt-4"
-            >
-              <div className="w-2 h-2 rounded-full bg-sage-400 animate-pulse" />
-              <span className="text-xs font-medium text-ink-500">Syncing in background...</span>
-            </motion.div>
+            <div className="h-12 w-full mt-4">
+              <AnimatePresence>
+                {demoState.phase === 'CONFIRMED' && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+                    className="w-full bg-cream-50 rounded-xl p-3 flex items-center justify-center gap-3"
+                  >
+                    <div className={`w-2 h-2 rounded-full bg-${DEMO_SCENARIOS[demoState.scenario].color}-400 animate-pulse`} />
+                    <span className="text-xs font-medium text-ink-500 truncate">{DEMO_SCENARIOS[demoState.scenario].syncText}</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
-        </div>
+        </motion.div>
       </section>
 
       {/* Product Story */}
-      <section id="how-it-works" className="py-24 bg-white">
+      <section id="how-it-works" className="py-24 bg-white overflow-hidden">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center max-w-2xl mx-auto mb-16">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="text-center max-w-2xl mx-auto mb-16"
+          >
             <h2 className="text-3xl font-bold text-ink-800 mb-4">From conversation to confirmed action.</h2>
             <p className="text-ink-500">A system designed around the reality of a busy merchant counter. Fast when you need it, smart when you don't.</p>
-          </div>
+          </motion.div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="p-8 rounded-3xl bg-cream-50 border border-cream-100">
+          <motion.div 
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={{
+              visible: { transition: { staggerChildren: 0.2 } },
+              hidden: {}
+            }}
+            className="grid grid-cols-1 md:grid-cols-3 gap-8"
+          >
+            <motion.div 
+              variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
+              whileHover={{ y: -8 }}
+              className="p-8 rounded-3xl bg-cream-50 border border-cream-100 transition-shadow hover:shadow-lg hover:shadow-cream-200"
+            >
               <div className="w-12 h-12 rounded-xl bg-white text-ink-700 flex items-center justify-center mb-6 shadow-sm font-bold text-xl">01</div>
               <h3 className="text-xl font-semibold text-ink-800 mb-3">Speak naturally</h3>
               <p className="text-ink-500 leading-relaxed">No strict commands. Just talk the way you normally do with your customers. VyaparSetu understands context and intent.</p>
-            </div>
+            </motion.div>
             
-            <div className="p-8 rounded-3xl bg-cream-50 border border-cream-100">
+            <motion.div 
+              variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
+              whileHover={{ y: -8 }}
+              className="p-8 rounded-3xl bg-cream-50 border border-cream-100 transition-shadow hover:shadow-lg hover:shadow-cream-200"
+            >
               <div className="w-12 h-12 rounded-xl bg-white text-ink-700 flex items-center justify-center mb-6 shadow-sm font-bold text-xl">02</div>
               <h3 className="text-xl font-semibold text-ink-800 mb-3">Confirm instantly</h3>
               <p className="text-ink-500 leading-relaxed">Your ledger updates immediately. You never have to wait for the system to process or generate an answer before confirming a transaction.</p>
-            </div>
+            </motion.div>
 
-            <div className="p-8 rounded-3xl bg-sage-50 border border-sage-100">
+            <motion.div 
+              variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
+              whileHover={{ y: -8 }}
+              className="p-8 rounded-3xl bg-sage-50 border border-sage-100 transition-shadow hover:shadow-lg hover:shadow-sage-200/50"
+            >
               <div className="w-12 h-12 rounded-xl bg-white text-sage-600 flex items-center justify-center mb-6 shadow-sm font-bold text-xl">03</div>
               <h3 className="text-xl font-semibold text-ink-800 mb-3">Keep working</h3>
               <p className="text-ink-500 leading-relaxed">Deeper analysis, rate checking, and AI syncing happens quietly in the background. You're already helping the next customer.</p>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         </div>
       </section>
 
@@ -146,7 +325,13 @@ export const LandingPage: React.FC = () => {
         <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-sage-500/50 to-transparent" />
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           
-          <div className="space-y-6">
+          <motion.div 
+            initial={{ opacity: 0, x: -30 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.8 }}
+            className="space-y-6"
+          >
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-ink-800 text-sage-300 font-medium text-sm border border-ink-700">
               <Code2 className="w-4 h-4" /> Built for developers
             </div>
@@ -164,9 +349,15 @@ export const LandingPage: React.FC = () => {
               <div className="flex gap-4 mb-2"><span className="text-amber-400">POST</span> <span>/webhook/payment-link</span></div>
               <div className="flex gap-4"><span className="text-amber-400">POST</span> <span>/webhook/vendor-payout</span></div>
             </div>
-          </div>
+          </motion.div>
 
-          <div className="relative">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="relative"
+          >
             {/* Architecture Visual */}
             <div className="absolute inset-0 bg-gradient-to-tr from-sage-500/20 to-teal-500/20 rounded-full blur-[100px]" />
             <div className="relative grid grid-cols-2 gap-4">
@@ -195,7 +386,7 @@ export const LandingPage: React.FC = () => {
                </div>
 
             </div>
-          </div>
+          </motion.div>
 
         </div>
       </section>

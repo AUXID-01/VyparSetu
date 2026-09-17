@@ -45,12 +45,12 @@ export const Sidebar: React.FC = () => {
   return (
     <aside className="w-64 border-r border-cream-200 h-screen sticky top-0 bg-white flex flex-col p-4">
       {/* Brand */}
-      <div className="flex items-center gap-2 px-3 mb-8">
+      <Link to="/dashboard" className="flex items-center gap-2 px-3 mb-8 hover:opacity-80 transition-opacity">
         <div className="w-8 h-8 rounded-lg bg-sage-500 flex items-center justify-center">
           <span className="text-white font-bold text-lg">V</span>
         </div>
         <span className="font-semibold text-xl tracking-tight text-ink-800">VyaparSetu</span>
-      </div>
+      </Link>
 
       {/* Main Nav */}
       <nav className="flex-1 space-y-8">

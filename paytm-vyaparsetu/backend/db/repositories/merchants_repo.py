@@ -3,12 +3,13 @@ from db.models import Merchant
 from core.ids import generate_merchant_id
 
 def create_merchant(db: Session, shop_name: str, owner_name: str, phone: str) -> Merchant:
+    merchant_id = generate_merchant_id()
     merchant = Merchant(
-        merchant_id=generate_merchant_id(),
+        merchant_id=merchant_id,
         shop_name=shop_name,
         owner_name=owner_name,
         phone=phone,
-        cognee_dataset=f"dataset_{phone}"
+        cognee_dataset=f"merchant_{merchant_id}"
     )
     db.add(merchant)
     db.commit()

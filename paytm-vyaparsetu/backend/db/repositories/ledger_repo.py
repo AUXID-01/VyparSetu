@@ -27,3 +27,24 @@ def create_transaction(
     db.commit()
     db.refresh(txn)
     return txn
+
+insert_transaction = create_transaction
+
+def calculate_customer_due(db: Session, merchant_id: str, customer_id: str) -> float:
+    from sqlalchemy.sql import func
+    from core.enums import TxnType
+    
+    total_due = db.query(func.sum(LedgerTransaction.amount)).filter(
+        LedgerTransaction.customer_id == customer_id,
+        LedgerTransaction.merchant_id == merchant_id,
+        LedgerTransaction.txn_type == TxnType.CREDIT_ADDED.value
+    ).scalar() or 0.0
+
+    total_paid = db.query(func.sum(LedgerTransaction.amount)).filter(
+        LedgerTransaction.customer_id == customer_id,
+        LedgerTransaction.merchant_id == merchant_id,
+        LedgerTransaction.txn_type == TxnType.CREDIT_PAID.value
+    ).scalar() or 0.0
+
+    return float(total_due) - float(total_paid)
+

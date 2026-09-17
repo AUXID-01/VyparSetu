@@ -1,5 +1,10 @@
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Optional
+
+BASE_DIR = Path(__file__).resolve().parent
+ENV_FILE = BASE_DIR / ".env"
+if not ENV_FILE.exists():
+    ENV_FILE = BASE_DIR.parent / ".env"
 
 class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://vyapar_user:vyapar_pass@localhost:5432/vyaparsetu_db"
@@ -14,7 +19,7 @@ class Settings(BaseSettings):
     N8N_ONBOARDING_WEBHOOK_URL: str = "http://localhost:5678/webhook/merchant-onboarding"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(ENV_FILE),
         env_file_encoding="utf-8",
         extra="ignore"
     )

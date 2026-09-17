@@ -16,7 +16,7 @@ HEADERS = {
     "api-subscription-key": SARVAM_API_KEY
 }
 
-def test_tts():
+def run_tts():
     print("[1/2] Testing Sarvam TTS (Text-to-Speech)...")
     url = "https://api.sarvam.ai/text-to-speech"
     payload = {
@@ -42,7 +42,7 @@ def test_tts():
         print(f"-> Success! Audio saved to {output_file}")
         return output_file
 
-def test_stt(audio_path: str):
+def run_stt(audio_path: str):
     print("[2/2] Testing Sarvam STT (Speech-to-Text) with codemix...")
     url = "https://api.sarvam.ai/speech-to-text"
     
@@ -66,8 +66,8 @@ if __name__ == "__main__":
         raise ValueError("Please set SARVAM_API_KEY before running.")
     
     try:
-        audio_file = test_tts()
-        test_stt(audio_file)
+        audio_file = run_tts()
+        run_stt(audio_file)
         print("\nAll Sarvam API checks passed! Your credentials and network access are verified.")
     except Exception as e:
         print(f"\nSarvam verification failed: {e}")

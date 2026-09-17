@@ -19,3 +19,6 @@ def create_event(
     db.commit()
     db.refresh(event)
     return event
+
+create_outbox_event = create_event
+

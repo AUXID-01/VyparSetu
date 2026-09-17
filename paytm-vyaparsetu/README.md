@@ -1,8 +1,9 @@
 # Paytm VyaparSetu
 
-## Setup & Verification Guide
+## Setup & Operations Guides
 
-For full installation, environment configuration, database container launch, and testing instructions (including Sarvam standalone verification), see **[docs/SETUP_GUIDE.md](file:///c:/VyaparSetu/VyparSetu/paytm-vyaparsetu/docs/SETUP_GUIDE.md)**.
+- **[docs/SETUP_GUIDE.md](file:///c:/VyaparSetu/VyparSetu/paytm-vyaparsetu/docs/SETUP_GUIDE.md)** — Installation, environment setup, database container launch, and testing instructions.
+- **[POSTGRES_OPS_GUIDE.md](file:///c:/VyaparSetu/VyparSetu/paytm-vyaparsetu/POSTGRES_OPS_GUIDE.md)** — Developer guide for PostgreSQL Docker CLI access, GUI tool parameters, SQL queries, reset commands, and data seeding scripts.
 
 ## Folder Skeleton & Architecture Overview
 

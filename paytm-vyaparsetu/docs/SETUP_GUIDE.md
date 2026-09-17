@@ -144,6 +144,12 @@ All Sarvam API checks passed! Your credentials and network access are verified.
 
 ---
 
+### Verification Step 3: Phase 3A Core Foundation & Database ORM Check
+
+For detailed instructions on testing ID generators, string enums, error envelopes, and SQLAlchemy ORM database persistence, see **[docs/PHASE_3A_VERIFICATION.md](file:///c:/VyaparSetu/VyparSetu/paytm-vyaparsetu/docs/PHASE_3A_VERIFICATION.md)**.
+
+---
+
 ## 6. Helpful Commands Reference
 
 | Action | Command |

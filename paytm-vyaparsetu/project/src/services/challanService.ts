@@ -11,7 +11,9 @@ export const challanService = {
     formData.append('merchant_id', merchantId);
     formData.append('image', file);
     
+    console.log(`🔍 [Challan Service] Extracting challan image (size: ${file.size} bytes)`);
     const res = await apiClient.post('/challan/extract', formData, true);
+    console.log(`🧮 [Challan Service] Extraction pipeline result:`, res.data);
     return res.data;
   },
 
@@ -25,8 +27,10 @@ export const challanService = {
       data: extractedData
     };
 
+    console.log(`🔍 [Challan Service] Confirming extracted data:`, payload);
     const res = await apiClient.post('/challan/confirm', payload);
     const data = res.data;
+    console.log(`📥 [Challan Service] Confirmed and received settlement details:`, data);
 
     // Backend returns invoice_id, rate_alerts, settlement
     const invoice: UIInvoice = {
@@ -51,7 +55,9 @@ export const challanService = {
 
   // POST /api/v1/challan/settle
   settle: async (invoiceId: string) => {
+    console.log(`💸 [Challan Service] Settling invoice: ${invoiceId}`);
     const res = await apiClient.post('/challan/settle', { invoice_id: invoiceId });
+    console.log(`📥 [Challan Service] Settle result:`, res.data);
     return { payout_status: res.data.payout_status };
   },
 

@@ -106,6 +106,23 @@ docker compose ps
 
 ---
 
+## 4.1. Database Migrations (Applying Schema Updates)
+
+Whenever you set up the project for the first time or pull new schema changes from `main`, run Alembic to apply all migrations to your local PostgreSQL instance:
+
+```powershell
+# 1. Navigate to backend directory
+cd paytm-vyaparsetu/backend
+
+# 2. Apply all database migrations
+alembic upgrade head
+```
+
+> ⚠️ **Important Note**: Starting the Docker container alone runs PostgreSQL with your local state. Running `alembic upgrade head` is what updates your local database tables to the latest schema (creating/extending `invoices`, `invoice_line_items`, `invoice_packaging_adjustments`, `invoice_extraction_audit`, etc.).
+
+
+---
+
 ## 5. Verification Steps
 
 ### Verification Step 1: Test Database Connectivity

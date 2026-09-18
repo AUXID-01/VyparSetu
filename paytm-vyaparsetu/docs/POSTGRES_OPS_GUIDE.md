@@ -145,3 +145,79 @@ python scripts/seed_sample.py
 
 Demo data seeded successfully!
 ```
+
+---
+
+## 5. Daily Development & Debugging Queries
+
+Use these queries to quickly inspect the state of your entities during development.
+
+### View All Merchants
+```sql
+SELECT merchant_id, shop_name, owner_name, phone, cognee_dataset, created_at
+FROM merchants
+ORDER BY created_at DESC;
+```
+
+### View Customers for a Specific Merchant
+Replace `<MERCHANT_ID>` with the actual ID (e.g., `mer_4c637a`).
+```sql
+SELECT customer_id, display_name, phone, canonical_key
+FROM customers
+WHERE merchant_id = '<MERCHANT_ID>'
+ORDER BY display_name ASC;
+```
+
+### View Distributors
+```sql
+SELECT distributor_id, name, upi_id, canonical_key, merchant_id
+FROM distributors
+ORDER BY created_at DESC;
+```
+
+### View Recent Invoices & Challan Metadata
+Useful for verifying the new Challan/Vision pipeline output.
+```sql
+SELECT 
+    invoice_id, 
+    merchant_id, 
+    distributor_id, 
+    total_amount, 
+    challan_type, 
+    capture_medium,
+    payment_handle_type,
+    created_at
+FROM invoices
+ORDER BY created_at DESC
+LIMIT 10;
+```
+
+### Check Invoice Extraction Audit Logs
+To debug what the Vision API/LLM returned vs what the OCR saw:
+```sql
+SELECT 
+    audit_id, 
+    invoice_id, 
+    model_used, 
+    escalated, 
+    vision_llm_raw_response,
+    created_at
+FROM invoice_extraction_audit
+ORDER BY created_at DESC
+LIMIT 5;
+```
+
+### View Invoice Line Items
+```sql
+SELECT 
+    line_item_id, 
+    invoice_id, 
+    sku, 
+    quantity, 
+    unit_price, 
+    unit,
+    is_free_scheme
+FROM invoice_line_items
+WHERE invoice_id = '<INVOICE_ID>'
+ORDER BY sku ASC;
+```

@@ -11,6 +11,7 @@ const getHeaders = () => {
 
 export const apiClient = {
   get: async (endpoint: string) => {
+    console.log(`🚀 [API Request] GET ${endpoint}`);
     const response = await fetch(`${BASE_URL}${endpoint}`, {
       method: 'GET',
       headers: {
@@ -19,7 +20,9 @@ export const apiClient = {
       }
     });
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    return response.json();
+    const resData = await response.json();
+    console.log(`📥 [API Response] GET ${endpoint}`, resData);
+    return resData;
   },
 
   post: async (endpoint: string, data?: any, isFormData = false) => {
@@ -28,6 +31,8 @@ export const apiClient = {
       headers['Content-Type'] = 'application/json';
     }
     
+    console.log(`🚀 [API Request] POST ${endpoint}`, isFormData ? '[FormData]' : data);
+
     const response = await fetch(`${BASE_URL}${endpoint}`, {
       method: 'POST',
       headers,
@@ -35,7 +40,11 @@ export const apiClient = {
     });
     
     const resData = await response.json();
-    if (!response.ok) throw new Error(resData?.error?.message || `HTTP error! status: ${response.status}`);
+    if (!response.ok) {
+      console.error(`❌ [API Error] POST ${endpoint}`, resData);
+      throw new Error(resData?.error?.message || `HTTP error! status: ${response.status}`);
+    }
+    console.log(`📥 [API Response] POST ${endpoint}`, resData);
     return resData;
   }
 };

@@ -19,7 +19,7 @@ def resolve_or_create(db: Session, merchant_id: str, name: str, upi_id: Optional
     ).first()
     
     if distributor:
-        logger.info(f"Distributor resolved: {distributor.distributor_id} (name: '{name}')")
+        logger.info(f"🔍 [DB Read] Distributor resolved: {distributor.distributor_id} (name: '{name}')")
         # Update upi_id if provided and current is None? Optional, let's stick to simple resolution
         return distributor
         
@@ -34,5 +34,5 @@ def resolve_or_create(db: Session, merchant_id: str, name: str, upi_id: Optional
     
     db.add(distributor)
     # We don't commit here, we let the service layer handle the transaction
-    logger.info(f"New Distributor created: {distributor_id} (name: '{name}')")
+    logger.info(f"💾 [DB Write] New Distributor created: {distributor_id} (name: '{name}')")
     return distributor

@@ -6,6 +6,9 @@ from datetime import datetime
 from db.models import Invoice, InvoiceLineItem, InvoicePackagingAdjustment, InvoiceExtractionAudit
 from core.ids import generate_id
 from vision.schemas import ConfirmedChallanInput, ConfirmedLineItem, PackagingAdjustment
+from core.logging import get_logger
+
+logger = get_logger("db.invoices_repo")
 
 def insert_confirmed_invoice(db: Session, merchant_id: str, distributor_id: str, input_data: ConfirmedChallanInput) -> Invoice:
     invoice_id = generate_id("inv_")
@@ -44,6 +47,7 @@ def insert_confirmed_invoice(db: Session, merchant_id: str, distributor_id: str,
     )
     
     db.add(invoice)
+    logger.info(f"💾 [DB Write] Created Invoice: {invoice_id} for Amount: {invoice.total_amount}")
     return invoice
 
 def insert_line_items(db: Session, invoice_id: str, distributor_id: str, line_items: List[ConfirmedLineItem]) -> List[InvoiceLineItem]:
@@ -69,6 +73,7 @@ def insert_line_items(db: Session, invoice_id: str, distributor_id: str, line_it
         db.add(db_item)
         inserted_items.append(db_item)
         
+    logger.info(f"💾 [DB Write] Created {len(inserted_items)} Line Items for Invoice {invoice_id}")
     return inserted_items
 
 def insert_packaging_adjustments(db: Session, invoice_id: str, adjustments: List[PackagingAdjustment]):
@@ -82,6 +87,8 @@ def insert_packaging_adjustments(db: Session, invoice_id: str, adjustments: List
             quantity=adj.quantity
         )
         db.add(db_adj)
+    if adjustments:
+        logger.info(f"💾 [DB Write] Created {len(adjustments)} Packaging Adjustments for Invoice {invoice_id}")
 
 def insert_extraction_audit(
     db: Session, 
@@ -103,6 +110,7 @@ def insert_extraction_audit(
         merchant_edited_fields=edited_fields or []
     )
     db.add(audit)
+    logger.info(f"💾 [DB Write] Created Extraction Audit {audit_id} for Invoice {invoice_id}")
 
 def get_last_price(db: Session, distributor_id: str, sku: str, exclude_invoice_id: str) -> Optional[float]:
     """
@@ -117,6 +125,7 @@ def get_last_price(db: Session, distributor_id: str, sku: str, exclude_invoice_i
         desc(Invoice.created_at)
     ).first()
     
+    logger.info(f"🔍 [DB Read] Fetched last price for SKU '{sku}' (Distributor: {distributor_id})")
     if result:
         return float(result[0])
     return None

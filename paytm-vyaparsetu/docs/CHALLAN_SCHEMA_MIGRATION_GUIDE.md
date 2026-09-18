@@ -122,6 +122,27 @@ Generated and applied Alembic migration revision:
 
 ---
 
+### 2.5 Important for Teammates & Developers Pulling This Repo
+
+Simply pulling this repository or running `docker exec` will **NOT** show the new fields in an existing local database until the migration is executed locally. 
+
+Whenever anyone pulls new schema updates from `main`, they must run:
+
+```powershell
+# 1. Navigate to backend directory
+cd paytm-vyaparsetu/backend
+
+# 2. Upgrade local PostgreSQL instance to latest schema
+alembic upgrade head
+```
+
+> 💡 **Why this is required**:
+> - Running `docker compose up -d db` starts your existing local Postgres container with its stored state.
+> - Running `alembic upgrade head` applies the new revision (`2b3b75111a5a`), extending `invoices` & `invoice_line_items`, and creating `invoice_packaging_adjustments` & `invoice_extraction_audit`.
+
+
+---
+
 ## 3. How to Test & Verify
 
 ### Method A: Database Schema Inspection (`psql` via Docker)

@@ -27,7 +27,9 @@ def get_merchant_available_settlement_balance(db: Session, merchant_id: str) -> 
     if paid_total is None:
         paid_total = Decimal("0.00")
         
-    return base_balance - Decimal(paid_total)
+    available = base_balance - Decimal(paid_total)
+    logger.info(f"🧮 [Calculation] Settlement Balance -> Base: {base_balance}, Paid: {paid_total}, Available: {available}")
+    return available
 
 
 def confirm_challan(db: Session, merchant_id: str, payload: Dict[str, Any], request_id: str) -> Dict[str, Any]:
@@ -78,6 +80,7 @@ def confirm_challan(db: Session, merchant_id: str, payload: Dict[str, Any], requ
             curr_price = float(item.unit_price)
             if prev_price is not None and curr_price > prev_price:
                 delta = curr_price - prev_price
+                logger.info(f"🧮 [Rate Delta] SKU '{item.sku}' increased by {delta} (Prev: {prev_price}, Curr: {curr_price})")
                 rate_alerts.append({
                     "sku": item.sku,
                     "previous_price": prev_price,
@@ -165,6 +168,7 @@ def settle_invoice(db: Session, invoice_id: str, request_id: str) -> Dict[str, A
             "destination": invoice.payment_handle_value,
             "merchant_reference": invoice_id
         }
+        logger.info(f"💸 [Payout] Triggering mock Paytm payout for invoice {invoice_id} -> {payload}")
         res = httpx.post("http://localhost:8001/payout", json=payload, timeout=10.0)
         
         # We will mock the response if the server is not reachable

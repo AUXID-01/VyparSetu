@@ -45,6 +45,7 @@ async def extract_challan_endpoint(
     response_data["model_used"] = model_used
     response_data["escalated"] = escalated
 
+    logger.info(f"📤 [{req_id}] [JSON Payload] POST /challan/extract egress payload: {response_data}")
     logger.info(f"✨ [{req_id}] POST /challan/extract egress: distributor='{result.distributor_name_raw}', items={len(result.line_items)}")
     return success_envelope(response_data)
 
@@ -71,8 +72,10 @@ def confirm_challan_endpoint(
 ):
     req_id = getattr(request.state, "request_id", "N/A")
     logger.info(f"💾 [{req_id}] POST /challan/confirm ingress: merchant_id='{payload.merchant_id}'")
+    logger.info(f"📥 [{req_id}] [JSON Payload] POST /challan/confirm ingress data: {payload.model_dump()}")
     
     result = confirm_challan(db, payload.merchant_id, payload.data, req_id)
+    logger.info(f"📤 [{req_id}] [JSON Payload] POST /challan/confirm egress data: {result}")
     return success_envelope(result)
 
 @router.post("/settle")
@@ -83,6 +86,8 @@ def settle_challan_endpoint(
 ):
     req_id = getattr(request.state, "request_id", "N/A")
     logger.info(f"💸 [{req_id}] POST /challan/settle ingress: invoice_id='{payload.invoice_id}'")
+    logger.info(f"📥 [{req_id}] [JSON Payload] POST /challan/settle ingress data: {payload.model_dump()}")
     
     result = settle_invoice(db, payload.invoice_id, req_id)
+    logger.info(f"📤 [{req_id}] [JSON Payload] POST /challan/settle egress data: {result}")
     return success_envelope(result)

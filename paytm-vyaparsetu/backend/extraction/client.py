@@ -77,19 +77,26 @@ def parse_hindi_number_words(tokens: list[str]) -> float:
     return total if found_any else 0.0
 
 
-def extract_entities(transcript: str) -> Dict[str, Any]:
+from core.logging import get_logger
+
+logger = get_logger("extraction.client")
+
+def extract_entities(transcript: str, request_id: str = "N/A") -> Dict[str, Any]:
     """
     Parses conversational Kirana credit transcripts (Devanagari, Hinglish, or English)
     into structured JSON.
     """
+    logger.info(f"[{request_id}] extraction_start: transcript='{transcript}'")
     raw_text = transcript.strip()
     if not raw_text:
-        return {
+        res = {
             "customer_name": "",
             "amount": 0.0,
             "items": [],
             "confidence": 0.0
         }
+        logger.info(f"[{request_id}] extraction_complete (empty transcript): {res}")
+        return res
 
     # Normalize Devanagari digits to ASCII digits
     normalized_text = raw_text.translate(DEVANAGARI_DIGITS_TRANS)
@@ -140,9 +147,12 @@ def extract_entities(transcript: str) -> Dict[str, Any]:
     else:
         confidence = 0.20
 
-    return {
+    res = {
         "customer_name": customer_name,
         "amount": amount,
         "items": extracted_items,
         "confidence": confidence
     }
+    logger.info(f"[{request_id}] extraction_complete: customer='{customer_name}', amount={amount}, items={extracted_items}, confidence={confidence}")
+    return res
+

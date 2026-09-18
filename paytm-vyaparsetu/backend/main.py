@@ -1,9 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routes import merchants, voice, query
+from api.deps import request_id_middleware
 from core.errors import app_exception_handler, AppException
 
 app = FastAPI(title="Paytm VyaparSetu")
+
+app.middleware("http")(request_id_middleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -12,6 +15,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 app.add_exception_handler(AppException, app_exception_handler)
 

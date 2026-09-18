@@ -1,6 +1,9 @@
 import base64
 import httpx
 from .client import get_sarvam_headers, SARVAM_BASE_URL
+from core.logging import get_logger
+
+logger = get_logger("sarvam.tts")
 
 # Hindi transliterated dictionary for numbers 1 to 99
 HINDI_NUMBERS = {
@@ -19,16 +22,12 @@ HINDI_NUMBERS = {
 def number_to_hindi_words(n: int | float) -> str:
     """
     Converts a numeric value up to 99,999 into transliterated Hindi words.
-    Examples:
-        50 -> "pachas"
-        60 -> "saath"
-        240 -> "do sau chalis"
-        300 -> "teen sau"
-        1500 -> "ek hazaar paanch sau"
     """
     val = int(round(n))
     if val <= 0:
-        return "zero"
+        result = "zero"
+        logger.debug(f"number_to_hindi_words: input={n} -> '{result}'")
+        return result
 
     parts = []
 
@@ -51,13 +50,16 @@ def number_to_hindi_words(n: int | float) -> str:
         if val in HINDI_NUMBERS:
             parts.append(HINDI_NUMBERS[val])
 
-    return " ".join(parts)
+    result = " ".join(parts)
+    logger.debug(f"number_to_hindi_words: input={n} -> '{result}'")
+    return result
 
 
-def synthesize_speech(text: str, target_language_code: str = "hi-IN", speaker: str = "ritu") -> bytes:
+def synthesize_speech(text: str, target_language_code: str = "hi-IN", speaker: str = "ritu", request_id: str = "N/A") -> bytes:
     """
     Synthesizes text into raw audio bytes using Sarvam AI Text-to-Speech API (bulbul:v3).
     """
+    logger.info(f"[{request_id}] Sarvam TTS synthesis request: text='{text}', target_language_code='{target_language_code}', speaker='{speaker}'")
     url = f"{SARVAM_BASE_URL}/text-to-speech"
     headers = get_sarvam_headers()
     
@@ -74,9 +76,11 @@ def synthesize_speech(text: str, target_language_code: str = "hi-IN", speaker: s
             response.raise_for_status()
             res_json = response.json()
             audio_b64 = res_json["audios"][0]
-            return base64.b64decode(audio_b64)
-        except httpx.HTTPError:
-            # Fallback for hackathon demo if API key is invalid/missing
-            # Return a tiny 0-second valid WAV file
+            audio_bytes = base64.b64decode(audio_b64)
+            logger.info(f"[{request_id}] Sarvam TTS synthesis completed: bytes={len(audio_bytes)}")
+            return audio_bytes
+        except httpx.HTTPError as exc:
+            logger.warning(f"[{request_id}] Sarvam TTS API call failed or unavailable ({exc}). Using silent WAV fallback.")
             silent_wav_b64 = "UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA="
             return base64.b64decode(silent_wav_b64)
+

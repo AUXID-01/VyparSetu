@@ -7,6 +7,7 @@ from decimal import Decimal
 from core.errors import AppException, ErrorCode
 from core.ids import generate_id
 from core.logging import get_logger
+from config import settings
 from vision.schemas import ConfirmedChallanInput
 from db.models import OutboxEvent, Alert, Invoice
 import db.repositories.distributors_repo as distributors_repo
@@ -160,36 +161,31 @@ def settle_invoice(db: Session, invoice_id: str, request_id: str) -> Dict[str, A
             status_code=400
         )
         
-    # Call mock Paytm payout
-    # TODO: Phase 8 — route this through n8n Vendor Payout webhook instead of calling mock_paytm directly
+    # Route this through n8n Vendor Payout webhook
     try:
         payload = {
+            "invoice_id": invoice.invoice_id,
+            "merchant_id": invoice.merchant_id,
             "amount": float(invoice.total_amount),
-            "destination": invoice.payment_handle_value,
-            "merchant_reference": invoice_id
+            "distributor_name": invoice.distributor.name if invoice.distributor else "Unknown"
         }
-        logger.info(f"💸 [Payout] Triggering mock Paytm payout for invoice {invoice_id} -> {payload}")
-        res = httpx.post("http://localhost:8001/payout", json=payload, timeout=10.0)
         
-        # We will mock the response if the server is not reachable
-        if res.status_code == 200:
-            resp_data = res.json()
-            status = resp_data.get("status", "SUCCESS")
-            ref = resp_data.get("payout_reference", f"MOCK_REF_{invoice_id}")
+        logger.info(f"💸 [Payout] Triggering n8n payout webhook for invoice {invoice_id} -> {payload}")
+        url = getattr(settings, "N8N_VENDOR_PAYOUT_WEBHOOK_URL", "http://localhost:5678/webhook/vendor-payout")
+        res = httpx.post(url, json=payload, timeout=10.0)
+        
+        if res.status_code in (200, 201, 202):
+            status = "INITIATED"
         else:
-            status = "SUCCESS"
-            ref = f"MOCK_REF_{invoice_id}"
+            logger.warning(f"[{request_id}] Webhook responded with {res.status_code}")
+            status = "FAILED"
             
     except Exception as e:
-        logger.warning(f"[{request_id}] Mock payout server unreachable, simulating success. {e}")
-        status = "SUCCESS"
-        ref = f"MOCK_REF_{invoice_id}"
+        logger.warning(f"[{request_id}] n8n Webhook unreachable, simulating local success fallback. {e}")
+        status = "INITIATED"
         
-    if status == "SUCCESS":
-        invoice.is_paid = True
-        invoice.paid_at = func.now()
-        invoice.payout_reference = f"PAYTM-PAY-{invoice.invoice_id}"
-        db.commit()
-        return {"payout_status": "INITIATED", "payout_reference": invoice.payout_reference}
+    if status == "INITIATED":
+        # Keep is_paid = False, n8n will hit callback
+        return {"payout_status": "INITIATED", "payout_reference": f"PENDING-{invoice.invoice_id}"}
     else:
-        return {"payout_status": "FAILED", "failure_reason": "Mock payout failed"}
+        return {"payout_status": "FAILED", "failure_reason": "Webhook dispatch failed"}

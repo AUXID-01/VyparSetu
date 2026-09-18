@@ -19,6 +19,13 @@ class PaymentLinkRequest(BaseModel):
     customer_id: str
     amount: float
 
+class PayoutCallbackRequest(BaseModel):
+    invoice_id: str
+    merchant_id: str
+    status: str
+    utr_reference: Optional[str] = None
+    failure_reason: Optional[str] = None
+
 class MemorySyncRequest(BaseModel):
     event_id: str
     merchant_id: str
@@ -140,3 +147,83 @@ def dispatch_payment_link(
     
     logger.info(f"📤 [{req_id}] [JSON Payload] POST /internal/notifications/payment-link egress: {link_payload}")
     return success_envelope(link_payload)
+
+@router.post("/payout/callback")
+def payout_callback(
+    request: Request,
+    payload: PayoutCallbackRequest,
+    db: Session = Depends(get_db)
+):
+    from db.models import Invoice, Alert, OutboxEvent
+    from core.ids import generate_id
+    from sqlalchemy.sql import func
+    
+    req_id = getattr(request.state, "request_id", "N/A")
+    logger.info(f"📥 [{req_id}] [JSON Payload] POST /internal/payout/callback ingress: {payload.model_dump()}")
+    
+    invoice = db.query(Invoice).filter(
+        Invoice.invoice_id == payload.invoice_id,
+        Invoice.merchant_id == payload.merchant_id
+    ).first()
+    
+    if not invoice:
+        raise AppException(
+            code="INVOICE_NOT_FOUND",
+            message=f"Invoice {payload.invoice_id} not found",
+            status_code=404
+        )
+        
+    if payload.status == "SUCCESS":
+        invoice.is_paid = True
+        invoice.paid_at = func.now()
+        invoice.payout_reference = payload.utr_reference
+        
+        # Log ledger entry for vendor settlement payout in outbox
+        outbox_id = generate_id("out_")
+        outbox = OutboxEvent(
+            event_id=outbox_id,
+            merchant_id=payload.merchant_id,
+            event_type="PAYOUT_SETTLED",
+            payload={
+                "invoice_id": invoice.invoice_id,
+                "amount": float(invoice.total_amount),
+                "utr_reference": payload.utr_reference
+            },
+            status="PENDING"
+        )
+        db.add(outbox)
+        
+    elif payload.status == "FAILED":
+        invoice.is_paid = False
+        
+        alert_id = generate_id("alrt_")
+        alert = Alert(
+            alert_id=alert_id,
+            merchant_id=payload.merchant_id,
+            alert_type="PAYOUT_FAILED",
+            details={
+                "invoice_id": invoice.invoice_id,
+                "amount": float(invoice.total_amount),
+                "failure_reason": payload.failure_reason
+            }
+        )
+        db.add(alert)
+        
+    else:
+        raise AppException(
+            code="INVALID_STATUS",
+            message="Status must be SUCCESS or FAILED",
+            status_code=400
+        )
+        
+    db.commit()
+    
+    result_data = {
+        "invoice_id": invoice.invoice_id,
+        "is_paid": invoice.is_paid,
+        "status": payload.status
+    }
+    
+    logger.info(f"📤 [{req_id}] [JSON Payload] POST /internal/payout/callback egress: {result_data}")
+    return success_envelope(result_data)
+

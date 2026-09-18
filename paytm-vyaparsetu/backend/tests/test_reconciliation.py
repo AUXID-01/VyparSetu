@@ -23,6 +23,8 @@ def clean_db(db):
     db.query(OutboxEvent).delete()
     db.commit()
 
+import uuid
+
 @pytest.fixture
 def merchant(db):
     merchant_id = "mer_reconciliation_test"
@@ -33,10 +35,11 @@ def merchant(db):
             shop_name="Recon Test Shop",
             owner_name="Test Owner",
             phone="8888888888",
-            cognee_dataset="ds_test"
+            cognee_dataset=f"ds_test_{uuid.uuid4().hex[:6]}"
         )
         db.add(merchant)
         db.commit()
+        db.refresh(merchant)
     return merchant
 
 def test_stuck_pending_events(db, merchant):

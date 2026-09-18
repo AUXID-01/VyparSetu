@@ -5,6 +5,7 @@ from db.session import SessionLocal
 from config import settings
 from core.errors import ErrorCode, AppException
 from core.auth import parse_mock_token
+from fastapi import Header, Request, HTTPException, status
 
 async def request_id_middleware(request: Request, call_next):
     req_id = request.headers.get("X-Request-ID")
@@ -24,9 +25,18 @@ def get_db():
 
 def get_current_merchant(authorization: Optional[str] = Header(None)) -> str:
     if not authorization or not authorization.startswith("Bearer "):
-        return "mer_mock123"
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing Authorization header"
+        )
         
-    token = authorization.replace("Bearer ", "")
+    token = authorization.replace("Bearer ", "").strip()
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token"
+        )
+    # Use parse_mock_token for now, but fail if no valid token
     merchant_id = parse_mock_token(token)
     return merchant_id
 

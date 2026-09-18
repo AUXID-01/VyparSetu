@@ -1,4 +1,5 @@
 from typing import List, Optional
+from datetime import timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 from db.models import OutboxEvent
@@ -33,6 +34,15 @@ def get_pending_events(db: Session, limit: int = 50) -> List[OutboxEvent]:
     ).order_by(OutboxEvent.created_at.asc()).limit(limit).all()
     logger.info(f"🔍 [DB Read] Fetched {len(events)} PENDING outbox events (limit {limit})")
     return events
+
+def get_stuck_pending_events(db: Session, age_minutes: int = 5, limit: int = 20) -> List[OutboxEvent]:
+    events = db.query(OutboxEvent).filter(
+        OutboxEvent.status == "PENDING",
+        OutboxEvent.created_at <= (func.now() - timedelta(minutes=age_minutes))
+    ).order_by(OutboxEvent.created_at.asc()).limit(limit).all()
+    logger.info(f"🔍 [DB Read] Fetched {len(events)} stuck PENDING outbox events (age > {age_minutes}m, limit {limit})")
+    return events
+
 
 def mark_event_synced(db: Session, event_id: str) -> Optional[OutboxEvent]:
     event = db.query(OutboxEvent).filter(OutboxEvent.event_id == event_id).first()

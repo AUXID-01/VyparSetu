@@ -42,6 +42,27 @@ def get_pending_outbox_events(request: Request, limit: int = 20, db: Session = D
     logger.info(f"📤 [{req_id}] [JSON Payload] GET /internal/outbox/pending egress (count={len(data)})")
     return success_envelope(data)
 
+@router.get("/outbox/stuck")
+def get_stuck_pending_events(request: Request, age_minutes: int = 5, limit: int = 20, db: Session = Depends(get_db)):
+    req_id = getattr(request.state, "request_id", "N/A")
+    logger.info(f"📥 [{req_id}] [JSON Payload] GET /internal/outbox/stuck ingress (age_minutes={age_minutes}, limit={limit})")
+    
+    events = outbox_repo.get_stuck_pending_events(db, age_minutes=age_minutes, limit=limit)
+    data = [
+        {
+            "event_id": e.event_id,
+            "merchant_id": e.merchant_id,
+            "event_type": e.event_type,
+            "payload": e.payload,
+            "attempt_count": e.attempt_count,
+            "created_at": e.created_at.isoformat() if e.created_at else None
+        } for e in events
+    ]
+    
+    logger.info(f"📤 [{req_id}] [JSON Payload] GET /internal/outbox/stuck egress (count={len(data)})")
+    return success_envelope(data)
+
+
 @router.post("/outbox/callback")
 def outbox_callback(
     request: Request,

@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mic, CheckCircle2, ArrowRight, Code2, Database, Zap, Sparkles, Clock, ScanLine, AlertTriangle } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import { AuthModal } from '../components/auth/AuthModal';
+import { useAuth } from '../contexts/AuthContext';
+
 
 const DEMO_SCENARIOS = [
   {
@@ -62,6 +65,9 @@ const DEMO_SCENARIOS = [
 export const LandingPage: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [demoState, setDemoState] = useState<{ phase: 'IDLE' | 'LISTENING' | 'CONFIRMED', scenario: number }>({ phase: 'IDLE', scenario: 0 });
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -107,11 +113,12 @@ export const LandingPage: React.FC = () => {
             <a href="#integration" className="hover:text-ink-800 transition-colors">Integration</a>
           </div>
 
-          <Link to="/dashboard">
-            <Button>Open Dashboard</Button>
-          </Link>
+          <Button onClick={() => isAuthenticated ? navigate('/dashboard') : setIsAuthModalOpen(true)}>
+            Open Dashboard
+          </Button>
         </div>
       </nav>
+
 
       {/* Hero Section */}
       <section className="pt-32 pb-20 px-6 max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-16">
@@ -140,9 +147,7 @@ export const LandingPage: React.FC = () => {
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
             className="flex items-center justify-center lg:justify-start gap-4 pt-4"
           >
-            <Link to="/dashboard">
-              <Button size="lg" className="h-14 px-8 text-base shadow-lg shadow-sage-500/20 hover:scale-105 transition-transform">Explore Dashboard</Button>
-            </Link>
+            <Button size="lg" onClick={() => isAuthenticated ? navigate('/dashboard') : setIsAuthModalOpen(true)} className="h-14 px-8 text-base shadow-lg shadow-sage-500/20 hover:scale-105 transition-transform">Explore Dashboard</Button>
             <a href="#how-it-works">
               <Button size="lg" variant="ghost" className="h-14 px-8 text-base hover:bg-cream-200 transition-colors">See How It Works</Button>
             </a>
@@ -395,6 +400,8 @@ export const LandingPage: React.FC = () => {
       <footer className="py-8 text-center text-ink-400 text-sm border-t border-cream-200">
         <p>Built for the Hackathon. Designed for Merchants.</p>
       </footer>
+      
+      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
     </div>
   );
 };

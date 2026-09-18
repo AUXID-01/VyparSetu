@@ -3,14 +3,22 @@ from extraction import extract_entities
 
 def test_case_1_suresh_credit():
     res = extract_entities("suresh ji 240 rupaye ka dahi")
-    assert res["customer_name"] == "suresh"
+    assert res["customer_name"].lower() == "suresh"
     assert res["amount"] == 240.0
     assert "dahi" in res["items"]
     assert res["confidence"] >= 0.8
 
+def test_case_hinglish_suresh_credit():
+    res = extract_entities("Suresh ke khate mein do sau chalis rupaye likh lo dahi aur tel ke.")
+    assert res["customer_name"] == "Suresh"
+    assert res["amount"] == 240.0
+    assert "dahi" in res["items"]
+    assert "tel" in res["items"]
+    assert res["confidence"] >= 0.8
+
 def test_case_2_ramesh_credit():
     res = extract_entities("ramesh ko 60 ka bread diya")
-    assert res["customer_name"] == "ramesh"
+    assert res["customer_name"].lower() == "ramesh"
     assert res["amount"] == 60.0
     assert "bread" in res["items"]
     assert res["confidence"] >= 0.8

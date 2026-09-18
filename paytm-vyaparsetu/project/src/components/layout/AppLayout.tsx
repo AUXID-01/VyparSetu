@@ -1,12 +1,19 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
-import { Search } from 'lucide-react';
+import { Search, LogOut } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 export const AppLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { language, setLanguage, t } = useLanguage();
+  const { auth, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
 
   return (
     <div className="flex min-h-screen bg-cream-100">
@@ -15,8 +22,8 @@ export const AppLayout: React.FC = () => {
         {/* Header */}
         <header className="h-16 flex items-center justify-between px-8 bg-white/50 backdrop-blur-md border-b border-cream-200 sticky top-0 z-10">
           <div className="text-xl font-medium text-ink-800">
-            {t('header.greeting')}, Ramesh
-            <span className="block text-xs font-normal text-ink-400">{t('header.subtitle')}</span>
+            {t('header.greeting')}, {auth.ownerName || 'Merchant'}
+            <span className="block text-xs font-normal text-ink-400">{auth.shopName || t('header.subtitle')}</span>
           </div>
 
           <div className="flex items-center gap-4">
@@ -45,6 +52,15 @@ export const AppLayout: React.FC = () => {
               <option value="te">తెలుగు (Telugu)</option>
               <option value="kn">ಕನ್ನಡ (Kannada)</option>
             </select>
+
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-danger bg-danger/10 hover:bg-danger/20 rounded-xl transition-colors cursor-pointer"
+              title="Logout"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Logout</span>
+            </button>
           </div>
         </header>
 

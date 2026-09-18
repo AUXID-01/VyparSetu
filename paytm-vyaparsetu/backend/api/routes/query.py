@@ -53,3 +53,23 @@ def get_daily_summary(merchant_id: str, date: date, db: Session = Depends(get_db
         "total_credits_added": float(total_credits),
         "total_payments_received": float(total_payments)
     })
+
+@router.get("/recent-transactions")
+def get_recent_transactions(merchant_id: str, limit: int = 5, db: Session = Depends(get_db)):
+    txns = db.query(LedgerTransaction).filter(
+        LedgerTransaction.merchant_id == merchant_id
+    ).order_by(LedgerTransaction.created_at.desc()).limit(limit).all()
+    
+    result = []
+    for txn in txns:
+        customer = db.query(Customer).filter(Customer.customer_id == txn.customer_id).first()
+        result.append({
+            "txn_id": txn.txn_id,
+            "customer_id": txn.customer_id,
+            "customer_name": customer.display_name if customer else "Unknown",
+            "amount": float(txn.amount),
+            "txn_type": txn.txn_type,
+            "created_at": txn.created_at.isoformat()
+        })
+        
+    return success_envelope(result)

@@ -1,17 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { CURRENT_MERCHANT } from '../data/merchants';
-import { Store, User, Phone, MapPin, CheckCircle2 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { Store, User, Phone, MapPin, CheckCircle2, LogOut } from 'lucide-react';
 
 export const Settings: React.FC = () => {
+  const { auth, logout } = useAuth();
+  const navigate = useNavigate();
   const [isSaved, setIsSaved] = useState(false);
   const [formData, setFormData] = useState({
-    owner_name: CURRENT_MERCHANT.owner_name,
-    shop_name: CURRENT_MERCHANT.shop_name,
-    phone: '9876543210',
+    owner_name: auth.ownerName || '',
+    shop_name: auth.shopName || '',
+    phone: auth.phone || '',
     address: 'Sector 4, Main Market, City',
   });
+
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      owner_name: auth.ownerName || prev.owner_name,
+      shop_name: auth.shopName || prev.shop_name,
+      phone: auth.phone || prev.phone,
+    }));
+  }, [auth.ownerName, auth.shopName, auth.phone]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -95,6 +107,26 @@ export const Settings: React.FC = () => {
             <Button type="submit">Save Changes</Button>
           </div>
         </form>
+      </Card>
+
+      <Card>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-ink-800">Account Session</h2>
+            <p className="text-sm text-ink-400">Sign out of your merchant session on this browser.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              logout();
+              navigate('/');
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-danger/10 text-danger hover:bg-danger/20 font-medium rounded-xl text-sm transition-colors cursor-pointer"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Sign Out</span>
+          </button>
+        </div>
       </Card>
     </div>
   );

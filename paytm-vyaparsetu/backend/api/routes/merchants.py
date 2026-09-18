@@ -11,7 +11,11 @@ class MerchantCreateReq(BaseModel):
     shop_name: str
     owner_name: str
     phone: str
+    password: str
 
+class MerchantLoginReq(BaseModel):
+    phone: str
+    password: str
 @router.post("")
 def create_merchant(req: MerchantCreateReq, db: Session = Depends(get_db)):
     existing = merchants_repo.get_merchant_by_phone(db, req.phone)
@@ -33,6 +37,9 @@ def create_merchant(req: MerchantCreateReq, db: Session = Depends(get_db)):
     
     return success_envelope({
         "merchant_id": merchant.merchant_id,
+        "shop_name": merchant.shop_name,
+        "owner_name": merchant.owner_name,
+        "phone": merchant.phone,
         "cognee_dataset": merchant.cognee_dataset,
         "session_token": f"mock_tok_{merchant.merchant_id}"
     })
@@ -52,4 +59,24 @@ def get_merchant(merchant_id: str, db: Session = Depends(get_db)):
         "owner_name": merchant.owner_name,
         "phone": merchant.phone,
         "cognee_dataset": merchant.cognee_dataset
+    })
+
+@router.post("/login")
+def login_merchant(req: MerchantLoginReq, db: Session = Depends(get_db)):
+    merchant = merchants_repo.get_merchant_by_phone(db, req.phone)
+    if not merchant:
+        raise AppException(
+            code=ErrorCode.MERCHANT_NOT_FOUND,
+            message="Merchant not found",
+            status_code=404
+        )
+    # Simple mock check for hackathon: any password passes if merchant exists
+    # In a real app we would check hashed passwords here
+    return success_envelope({
+        "merchant_id": merchant.merchant_id,
+        "shop_name": merchant.shop_name,
+        "owner_name": merchant.owner_name,
+        "phone": merchant.phone,
+        "cognee_dataset": merchant.cognee_dataset,
+        "session_token": f"mock_tok_{merchant.merchant_id}"
     })

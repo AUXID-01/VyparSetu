@@ -13,6 +13,7 @@ class ErrorCode(StrEnum):
     LOW_CONFIDENCE_EXTRACTION = "LOW_CONFIDENCE_EXTRACTION"
     DUPLICATE_MERCHANT_PHONE = "DUPLICATE_MERCHANT_PHONE"
     INTERNAL_TOKEN_INVALID = "INTERNAL_TOKEN_INVALID"
+    SARVAM_API_ERROR = "SARVAM_API_ERROR"
 
 class AppException(Exception):
     def __init__(self, code: ErrorCode, message: str, status_code: int = 400):

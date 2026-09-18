@@ -2,27 +2,53 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { VoiceRecorder } from '../components/features/VoiceRecorder';
-import { dashboardService } from '../services/dashboardService';
-import { db } from '../services/database';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { ArrowUpRight, ArrowDownRight, Clock, Receipt, ScanLine, Mic } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { useLanguage } from '../contexts/LanguageContext';
+import { apiClient } from '../services/apiClient';
+import { useAuth } from '../contexts/AuthContext';
 
 export const Dashboard: React.FC = () => {
   const { t } = useLanguage();
-  const [kpis, setKpis] = useState(dashboardService.getKPIs());
-  const [recentTxns, setRecentTxns] = useState(db.transactions.slice(0, 5));
+  const { auth } = useAuth();
+  const [kpis, setKpis] = useState({
+    outstandingDues: 0,
+    todayCollections: 0,
+    pendingSettlements: 0,
+    pendingCount: 0,
+    transactionsToday: 0
+  });
+  const [recentTxns, setRecentTxns] = useState<any[]>([]);
+
+  const fetchData = async () => {
+    if (!auth.merchantId) return;
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const summaryRes = await apiClient.get(`/query/daily-summary?merchant_id=${auth.merchantId}&date=${today}`);
+      const txnsRes = await apiClient.get(`/query/recent-transactions?merchant_id=${auth.merchantId}&limit=5`);
+      
+      setKpis({
+        outstandingDues: summaryRes.data.total_credits_added - summaryRes.data.total_payments_received,
+        todayCollections: summaryRes.data.total_payments_received,
+        pendingSettlements: 0, // Pending settlement is challan flow
+        pendingCount: 0, 
+        transactionsToday: txnsRes.data.length
+      });
+      setRecentTxns(txnsRes.data);
+    } catch (err) {
+      console.error("Failed to fetch dashboard data", err);
+    }
+  };
 
   useEffect(() => {
-    const unsubscribe = db.subscribe(() => {
-      setKpis(dashboardService.getKPIs());
-      setRecentTxns(db.transactions.slice(0, 5));
-    });
-    return unsubscribe;
-  }, []);
+    fetchData();
+    const interval = setInterval(fetchData, 10000); // refresh every 10s
+    return () => clearInterval(interval);
+  }, [auth.merchantId]);
 
   const formatCurrency = (val: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(val);
+
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
@@ -49,10 +75,6 @@ export const Dashboard: React.FC = () => {
           <div className="text-sm font-medium text-ink-500 mb-2">{t('kpi.dues')}</div>
           <div className="flex items-end justify-between">
             <div className="text-2xl font-bold text-ink-800">{formatCurrency(kpis.outstandingDues)}</div>
-            <div className="flex items-center text-xs font-medium text-danger bg-danger/10 px-2 py-1 rounded-md">
-              <ArrowUpRight className="w-3 h-3 mr-1" />
-              {kpis.outstandingTrend}
-            </div>
           </div>
           <div className="text-xs text-ink-400 mt-2">{t('kpi.dues.sub')}</div>
         </Card>
@@ -61,10 +83,6 @@ export const Dashboard: React.FC = () => {
           <div className="text-sm font-medium text-ink-500 mb-2">{t('kpi.collections')}</div>
           <div className="flex items-end justify-between">
             <div className="text-2xl font-bold text-ink-800">{formatCurrency(kpis.todayCollections)}</div>
-            <div className="flex items-center text-xs font-medium text-positive bg-positive/10 px-2 py-1 rounded-md">
-              <ArrowUpRight className="w-3 h-3 mr-1" />
-              {kpis.collectionsTrend}
-            </div>
           </div>
           <div className="text-xs text-ink-400 mt-2">{t('kpi.collections.sub')}: {kpis.transactionsToday}</div>
         </Card>
@@ -121,7 +139,6 @@ export const Dashboard: React.FC = () => {
               <div className="space-y-4">
                 {recentTxns.map(txn => {
                   const isCredit = txn.txn_type === 'CREDIT_ADDED';
-                  const customer = db.customers.find(c => c.customer_id === txn.customer_id);
                   return (
                     <div key={txn.txn_id} className="flex items-center justify-between p-4 rounded-xl hover:bg-cream-50 transition-colors border border-transparent hover:border-cream-200">
                       <div className="flex items-center gap-4">
@@ -129,7 +146,7 @@ export const Dashboard: React.FC = () => {
                           {isCredit ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
                         </div>
                         <div>
-                          <div className="font-semibold text-ink-800">{customer?.display_name || 'Unknown'}</div>
+                          <div className="font-semibold text-ink-800">{txn.customer_name || 'Unknown'}</div>
                           <div className="text-sm text-ink-500">{isCredit ? t('activity.credit') : t('activity.payment')} &bull; {new Date(txn.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                         </div>
                       </div>

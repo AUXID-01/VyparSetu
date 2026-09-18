@@ -4,6 +4,9 @@
 
 - **[docs/SETUP_GUIDE.md](file:///c:/VyaparSetu/VyparSetu/paytm-vyaparsetu/docs/SETUP_GUIDE.md)** — Installation, environment setup, database container launch, and testing instructions.
 - **[POSTGRES_OPS_GUIDE.md](file:///c:/VyaparSetu/VyparSetu/paytm-vyaparsetu/POSTGRES_OPS_GUIDE.md)** — Developer guide for PostgreSQL Docker CLI access, GUI tool parameters, SQL queries, reset commands, and data seeding scripts.
+- **[docs/CHALLAN_SCHEMA_MIGRATION_GUIDE.md](file:///c:/VyaparSetu/VyparSetu/paytm-vyaparsetu/docs/CHALLAN_SCHEMA_MIGRATION_GUIDE.md)** — Multi-format Challan Schema Extension, Pydantic Stage A-D schemas, Alembic migrations, and database verification.
+- **[docs/vyaparsetu-challan-schema-vision-stack.md](file:///c:/VyaparSetu/VyparSetu/paytm-vyaparsetu/docs/vyaparsetu-challan-schema-vision-stack.md)** — Multi-format Challan Vision Stack specification & cost-conscious escalation routing.
+
 
 ## Folder Skeleton & Architecture Overview
 

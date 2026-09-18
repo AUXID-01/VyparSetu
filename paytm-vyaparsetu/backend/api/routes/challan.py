@@ -11,16 +11,17 @@ router = APIRouter()
 async def extract_challan_endpoint(
     request: Request,
     merchant_id: str = Form(...),
-    image: UploadFile = File(...)
+    image: UploadFile = File(...),
+    capture_medium: str = Form("CAMERA_PHOTO")
 ):
     """
-    Exposes POST /api/v1/challan/extract (Passthrough debug & preview endpoint).
-    Accepts image upload, extracts structured challan JSON, and logs raw responses.
+    Exposes POST /api/v1/challan/extract.
+    Accepts image upload, runs the 4-stage vision pipeline, and returns the rich ChallanExtractionResult.
     Does NOT write to PostgreSQL.
     """
     req_id = getattr(request.state, "request_id", "N/A")
     filename = image.filename or "challan.jpg"
-    logger.info(f"📄 [{req_id}] POST /challan/extract ingress: merchant_id='{merchant_id}', filename='{filename}'")
+    logger.info(f"📄 [{req_id}] POST /challan/extract ingress: merchant_id='{merchant_id}', capture_medium='{capture_medium}', filename='{filename}'")
 
     image_bytes = await image.read()
     if not image_bytes or len(image_bytes) < 10:
@@ -31,7 +32,11 @@ async def extract_challan_endpoint(
             status_code=400
         )
 
-    extraction_result = vision.extract_challan(image_bytes, request_id=req_id)
+    result, ocr_text, raw_response, model_used, escalated = vision.extract_challan_pipeline(
+        image_bytes=image_bytes,
+        capture_medium=capture_medium,
+        request_id=req_id
+    )
 
-    logger.info(f"✨ [{req_id}] POST /challan/extract egress: distributor='{extraction_result.get('distributor_name_guess')}', items={len(extraction_result.get('line_items', []))}")
-    return success_envelope(extraction_result)
+    logger.info(f"✨ [{req_id}] POST /challan/extract egress: distributor='{result.distributor_name_raw}', items={len(result.line_items)}")
+    return success_envelope(result.model_dump())

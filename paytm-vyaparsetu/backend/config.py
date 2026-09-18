@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     SARVAM_API_KEY: str = ""
     GOOGLE_VISION_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
+    GROQ_API_KEY: str = ""
+    OPENAI_API_KEY: str = ""
     INTERNAL_TOKEN: str = "vyapar_internal_secret_token_123"
     PORT: int = 8000
     ENVIRONMENT: str = "development"

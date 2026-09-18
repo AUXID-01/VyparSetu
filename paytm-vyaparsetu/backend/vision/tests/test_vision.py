@@ -1,88 +1,93 @@
+import io
 import pytest
-from unittest.mock import MagicMock, patch
-from vision import extract_challan
-from core.errors import AppException, ErrorCode
-from config import settings
+from PIL import Image, ExifTags
+from vision.preprocessor import preprocess_challan_image
+from vision.schemas import ChallanExtractionResult, LineItem, TaxBreakdown
 
-MOCK_GEMINI_RESPONSE = {
-    "candidates": [
-        {
-            "content": {
-                "parts": [
-                    {
-                        "text": """{
-  "distributor_name_guess": "Amul Distributor - Sector 4",
-  "line_items": [
-    {
-      "sku": "dahi 200g pouch",
-      "quantity": 50,
-      "unit_price": 28.50
-    }
-  ],
-  "total_amount": 1425.00,
-  "extraction_confidence": 0.88
-}"""
-                    }
-                ]
+def test_preprocess_challan_image_resize_and_grayscale():
+    # Create a dummy large image (2000x2000)
+    img = Image.new('RGB', (2000, 2000), color='white')
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format='JPEG')
+    img_bytes = img_byte_arr.getvalue()
+
+    color_bytes, gray_bytes, meta = preprocess_challan_image(img_bytes)
+    
+    assert meta.original_dimensions == (2000, 2000)
+    assert meta.resized_to[0] <= 1600 and meta.resized_to[1] <= 1600
+    assert meta.grayscale_variant_created is True
+    assert meta.contrast_enhanced is True
+
+def test_preprocess_challan_image_exif_rotation():
+    # Create a dummy image
+    img = Image.new('RGB', (100, 200), color='white')
+    
+    # Try to set EXIF orientation (6 = rotate 270)
+    exif = img.getexif()
+    orientation_key = None
+    for k, v in ExifTags.TAGS.items():
+        if v == 'Orientation':
+            orientation_key = k
+            break
+    
+    if orientation_key:
+        exif[orientation_key] = 6
+    
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format='JPEG', exif=exif)
+    img_bytes = img_byte_arr.getvalue()
+    
+    color_bytes, gray_bytes, meta = preprocess_challan_image(img_bytes)
+    
+    # Original was 100x200. After rotating 270 degrees, it should be 200x100
+    assert meta.original_dimensions == (100, 200)
+    assert meta.was_rotated is True
+    assert meta.resized_to == (200, 100)
+
+def test_challan_extraction_result_schema_validation():
+    data = {
+        "challan_type": "FORMAL_GST",
+        "capture_medium": "CAMERA_PHOTO",
+        "distributor_name_raw": "Amul India Dairy",
+        "line_items": [
+            {
+                "raw_text": "Dahi 200g",
+                "canonical_item_name": "Dahi 200g Pouch",
+                "quantity": 50,
+                "unit": "pouches",
+                "unit_rate": 28.5,
+                "line_total": 1425.0,
+                "item_confidence": 0.92
             }
-        }
-    ]
-}
-
-@patch("vision.client.httpx.post")
-def test_extract_challan_structure(mock_post, monkeypatch):
-    monkeypatch.setattr(settings, "GOOGLE_VISION_API_KEY", "mock_gemini_key_123")
+        ],
+        "subtotal": 1425.0,
+        "tax": {
+            "cgst": 35.6,
+            "sgst": 35.6
+        },
+        "total_payable": 1496.2,
+        "metadata_confidence": 0.95,
+        "line_items_confidence": 0.92,
+        "overall_confidence": 0.93
+    }
     
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = MOCK_GEMINI_RESPONSE
-    mock_response.raise_for_status.return_value = None
-    mock_post.return_value = mock_response
-
-    sample_image_bytes = b"fake_image_bytes_for_testing_challan_ocr_sample_longer_than_100_bytes_padding_padding_padding_padding_padding_padding_padding"
-    result = extract_challan(sample_image_bytes, request_id="test_req_01")
-
-    assert "distributor_name_guess" in result
-    assert "line_items" in result
-    assert "total_amount" in result
-    assert "extraction_confidence" in result
-
-    assert result["distributor_name_guess"] == "Amul Distributor - Sector 4"
-    assert isinstance(result["line_items"], list)
-    assert result["line_items"][0]["sku"] == "Dahi 200G Pouch"
-    assert result["total_amount"] == 1425.00
-    assert 0.0 <= result["extraction_confidence"] <= 1.0
-
-@patch("vision.client.httpx.post")
-def test_sku_normalization(mock_post, monkeypatch):
-    monkeypatch.setattr(settings, "GOOGLE_VISION_API_KEY", "mock_gemini_key_123")
-
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = MOCK_GEMINI_RESPONSE
-    mock_response.raise_for_status.return_value = None
-    mock_post.return_value = mock_response
-
-    sample_image_bytes = b"fake_image_bytes_for_testing_challan_ocr_sample_longer_than_100_bytes_padding_padding_padding_padding_padding_padding_padding"
-    result = extract_challan(sample_image_bytes, request_id="test_req_02")
-
-    for item in result["line_items"]:
-        sku = item["sku"]
-        assert sku == sku.strip()
-        assert sku[0].isupper()
-
-def test_empty_image_guard():
-    empty_bytes = b"tiny"
-    with pytest.raises(AppException) as exc_info:
-        extract_challan(empty_bytes, request_id="test_req_03")
-    assert exc_info.value.code == ErrorCode.LOW_CONFIDENCE_EXTRACTION
-
-def test_missing_api_key_raises_app_exception(monkeypatch):
-    monkeypatch.setattr(settings, "GOOGLE_VISION_API_KEY", "")
-    monkeypatch.setattr(settings, "GEMINI_API_KEY", "")
+    result = ChallanExtractionResult(**data)
     
-    sample_bytes = b"fake_image_bytes_longer_than_100_bytes_padding_padding_padding_padding_padding_padding_padding_padding_padding_padding"
-    with pytest.raises(AppException) as exc_info:
-        extract_challan(sample_bytes, request_id="test_req_04")
-    assert exc_info.value.code == ErrorCode.SARVAM_API_ERROR
-    assert "GOOGLE_VISION_API_KEY" in exc_info.value.message
+    assert result.challan_type == "FORMAL_GST"
+    assert len(result.line_items) == 1
+    assert result.line_items[0].canonical_item_name == "Dahi 200g Pouch"
+    assert result.tax.cgst == 35.6
+    assert result.total_payable == 1496.2
+    
+    # Test fallback validation (missing required field)
+    with pytest.raises(ValueError):
+        ChallanExtractionResult(
+            challan_type="FORMAL_GST",
+            # missing capture_medium
+            distributor_name_raw="Test",
+            subtotal=100.0,
+            total_payable=100.0,
+            metadata_confidence=0.9,
+            line_items_confidence=0.9,
+            overall_confidence=0.9
+        )

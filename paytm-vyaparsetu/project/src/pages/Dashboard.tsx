@@ -76,7 +76,9 @@ export const Dashboard: React.FC = () => {
           <div className="flex items-end justify-between">
             <div className="text-2xl font-bold text-ink-800">{formatCurrency(kpis.outstandingDues)}</div>
           </div>
-          <div className="text-xs text-ink-400 mt-2">{t('kpi.dues.sub')}</div>
+          <Link to="/dashboard/customers" className="text-xs font-semibold text-sage-600 hover:text-sage-800 hover:underline mt-2 inline-block">
+            {t('kpi.dues.sub')} &rarr;
+          </Link>
         </Card>
 
         <Card>
@@ -84,7 +86,9 @@ export const Dashboard: React.FC = () => {
           <div className="flex items-end justify-between">
             <div className="text-2xl font-bold text-ink-800">{formatCurrency(kpis.todayCollections)}</div>
           </div>
-          <div className="text-xs text-ink-400 mt-2">{t('kpi.collections.sub')}: {kpis.transactionsToday}</div>
+          <Link to="/dashboard/transactions" className="text-xs font-semibold text-sage-600 hover:text-sage-800 hover:underline mt-2 inline-block">
+            {t('kpi.collections.sub')}: {kpis.transactionsToday} &rarr;
+          </Link>
         </Card>
 
         <Card>
@@ -132,7 +136,12 @@ export const Dashboard: React.FC = () => {
 
           {/* Live Activity */}
           <Card className="flex-1">
-            <h3 className="text-lg font-semibold text-ink-800 mb-6">{t('activity.title')}</h3>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-ink-800">{t('activity.title')}</h3>
+              <Link to="/dashboard/transactions" className="text-xs font-semibold text-sage-600 hover:text-sage-800 hover:underline">
+                View All Transactions &rarr;
+              </Link>
+            </div>
             {recentTxns.length === 0 ? (
               <div className="text-center py-8 text-ink-400 text-sm">{t('activity.empty')}</div>
             ) : (
@@ -154,7 +163,7 @@ export const Dashboard: React.FC = () => {
                         <div className={`font-bold ${isCredit ? 'text-danger' : 'text-positive'}`}>
                           {isCredit ? '+' : '-'}{formatCurrency(txn.amount)}
                         </div>
-                        <StatusBadge status={txn.sync_status} />
+                        <StatusBadge status={txn.sync_status || 'RECORDED'} />
                       </div>
                     </div>
                   );

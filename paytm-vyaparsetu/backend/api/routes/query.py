@@ -54,8 +54,44 @@ def get_daily_summary(merchant_id: str, date: date, db: Session = Depends(get_db
         "total_payments_received": float(total_payments)
     })
 
+@router.get("/customers")
+def get_customers(merchant_id: str, db: Session = Depends(get_db)):
+    customers = db.query(Customer).filter(Customer.merchant_id == merchant_id).all()
+    result = []
+    
+    for customer in customers:
+        total_due = db.query(func.sum(LedgerTransaction.amount)).filter(
+            LedgerTransaction.customer_id == customer.customer_id,
+            LedgerTransaction.txn_type == TxnType.CREDIT_ADDED.value
+        ).scalar() or 0.0
+        
+        total_paid = db.query(func.sum(LedgerTransaction.amount)).filter(
+            LedgerTransaction.customer_id == customer.customer_id,
+            LedgerTransaction.txn_type == TxnType.CREDIT_PAID.value
+        ).scalar() or 0.0
+        
+        last_txn = db.query(LedgerTransaction).filter(
+            LedgerTransaction.customer_id == customer.customer_id
+        ).order_by(LedgerTransaction.created_at.desc()).first()
+        
+        net_due = float(total_due) - float(total_paid)
+        
+        result.append({
+            "customer_id": customer.customer_id,
+            "display_name": customer.display_name,
+            "phone": customer.phone or "",
+            "total_due": net_due,
+            "total_credits": float(total_due),
+            "total_paid": float(total_paid),
+            "last_active": last_txn.created_at.isoformat() if last_txn else customer.created_at.isoformat(),
+            "items_summary": last_txn.items if last_txn and last_txn.items else []
+        })
+        
+    result.sort(key=lambda x: x["total_due"], reverse=True)
+    return success_envelope(result)
+
 @router.get("/recent-transactions")
-def get_recent_transactions(merchant_id: str, limit: int = 5, db: Session = Depends(get_db)):
+def get_recent_transactions(merchant_id: str, limit: int = 20, db: Session = Depends(get_db)):
     txns = db.query(LedgerTransaction).filter(
         LedgerTransaction.merchant_id == merchant_id
     ).order_by(LedgerTransaction.created_at.desc()).limit(limit).all()
@@ -69,6 +105,9 @@ def get_recent_transactions(merchant_id: str, limit: int = 5, db: Session = Depe
             "customer_name": customer.display_name if customer else "Unknown",
             "amount": float(txn.amount),
             "txn_type": txn.txn_type,
+            "source": txn.source,
+            "items": txn.items or [],
+            "extraction_confidence": float(txn.extraction_confidence) if txn.extraction_confidence else 1.0,
             "created_at": txn.created_at.isoformat()
         })
         

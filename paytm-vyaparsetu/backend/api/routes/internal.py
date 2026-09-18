@@ -29,6 +29,13 @@ class PayoutCallbackRequest(BaseModel):
 class AlertDispatchRequest(BaseModel):
     alert_id: str
 
+class SystemErrorAlertRequest(BaseModel):
+    workflow_name: str
+    execution_id: str
+    error_message: str
+    node_name: Optional[str] = None
+    details: Optional[dict] = None
+
 class ProvisionDatasetRequest(BaseModel):
     merchant_id: str
 
@@ -284,6 +291,61 @@ def provision_merchant_dataset(
     
     logger.info(f"📤 [{req_id}] [JSON Payload] POST /internal/merchants/provision-dataset egress: {result_data}")
     return success_envelope(result_data)
+
+
+@router.post("/alerts/system-error")
+def log_system_error(
+    request: Request,
+    payload: SystemErrorAlertRequest,
+    db: Session = Depends(get_db)
+):
+    from db.models import Merchant, Alert
+    from core.ids import generate_id
+    
+    req_id = getattr(request.state, "request_id", "N/A")
+    logger.info(f"📥 [{req_id}] [JSON Payload] POST /internal/alerts/system-error ingress: {payload.model_dump()}")
+    
+    # Ensure "SYSTEM" merchant exists for foreign key constraint
+    system_merchant = db.query(Merchant).filter(Merchant.merchant_id == "SYSTEM").first()
+    if not system_merchant:
+        system_merchant = Merchant(
+            merchant_id="SYSTEM",
+            shop_name="VyaparSetu System",
+            owner_name="System",
+            phone="0000000000",
+            cognee_dataset="system_metrics"
+        )
+        db.add(system_merchant)
+        db.flush()
+        
+    alert_id = generate_id("alrt_")
+    
+    alert = Alert(
+        alert_id=alert_id,
+        merchant_id="SYSTEM",
+        alert_type="SYSTEM_ERROR",
+        details={
+            "workflow": payload.workflow_name,
+            "execution_id": payload.execution_id,
+            "node": payload.node_name,
+            "error": payload.error_message,
+            "extra": payload.details
+        },
+        is_read=False
+    )
+    db.add(alert)
+    db.commit()
+    
+    logger.info(f"🚨 [System Error] Logged workflow failure from {payload.workflow_name} ({payload.execution_id})")
+    
+    result_data = {
+        "alert_id": alert_id,
+        "status": "LOGGED"
+    }
+    
+    logger.info(f"📤 [{req_id}] [JSON Payload] POST /internal/alerts/system-error egress: {result_data}")
+    return success_envelope(result_data)
+
 
 
 

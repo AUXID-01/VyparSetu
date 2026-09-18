@@ -58,8 +58,8 @@ class PackagingAdjustment(BaseModel):
     quantity: int
 
 class PaymentHandle(BaseModel):
-    handle_type: str
-    value: str
+    handle_type: Optional[str] = None
+    value: Optional[str] = None
 
 class TaxBreakdown(BaseModel):
     cgst: Optional[float] = None

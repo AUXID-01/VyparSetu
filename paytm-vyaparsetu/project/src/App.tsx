@@ -5,6 +5,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Customers } from './pages/Customers';
 import { Transactions } from './pages/Transactions';
 import { Challans } from './pages/Challans';
+import { Settlements } from './pages/Settlements';
 import { Insights } from './pages/Insights';
 import { Automation } from './pages/Automation';
 import { LandingPage } from './pages/LandingPage';
@@ -30,7 +31,7 @@ function App() {
             <Route path="customers" element={<Customers />} />
             <Route path="transactions" element={<Transactions />} />
             <Route path="challans" element={<Challans />} />
-            <Route path="settlements" element={<div className="p-8 text-center text-ink-500 font-medium">Settlements (Available in Phase 6)</div>} />
+            <Route path="settlements" element={<Settlements />} />
             <Route path="insights" element={<Insights />} />
             <Route path="automation" element={<Automation />} />
             <Route path="notifications" element={<div className="p-8 text-center text-ink-500 font-medium">Notifications (Available in Phase 8)</div>} />

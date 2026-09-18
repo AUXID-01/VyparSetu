@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 from datetime import date
 from api.deps import get_db
-from db.models import LedgerTransaction, Customer
+from db.models import LedgerTransaction, Customer, Invoice, Distributor
 from core.errors import success_envelope, AppException, ErrorCode
 from core.enums import TxnType
 
@@ -109,6 +109,29 @@ def get_recent_transactions(merchant_id: str, limit: int = 20, db: Session = Dep
             "items": txn.items or [],
             "extraction_confidence": float(txn.extraction_confidence) if txn.extraction_confidence else 1.0,
             "created_at": txn.created_at.isoformat()
+        })
+        
+    return success_envelope(result)
+
+@router.get("/settlements")
+def get_settlements(merchant_id: str, db: Session = Depends(get_db)):
+    invoices = db.query(Invoice).join(Distributor).filter(
+        Invoice.merchant_id == merchant_id
+    ).order_by(Invoice.created_at.desc()).all()
+    
+    result = []
+    for inv in invoices:
+        result.append({
+            "invoice_id": inv.invoice_id,
+            "distributor_name": inv.distributor.name,
+            "total_amount": float(inv.total_amount),
+            "is_paid": inv.is_paid,
+            "paid_at": inv.paid_at.isoformat() if inv.paid_at else None,
+            "payout_reference": inv.payout_reference,
+            "created_at": inv.created_at.isoformat(),
+            "payment_handle_type": inv.payment_handle_type,
+            "payment_handle_value": inv.payment_handle_value,
+            "challan_type": inv.challan_type
         })
         
     return success_envelope(result)

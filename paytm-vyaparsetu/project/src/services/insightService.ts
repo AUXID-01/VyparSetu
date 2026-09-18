@@ -1,5 +1,4 @@
-import { sleep } from './database';
-
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 export const insightService = {
   ask: async (question: string) => {
     // If it's a simple, pre-cached question, return fast

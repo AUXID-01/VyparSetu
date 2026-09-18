@@ -1,83 +1,40 @@
-import { db, sleep } from './database';
-import { CURRENT_MERCHANT } from '../data/merchants';
+import { apiClient } from './apiClient';
 import { UILedgerTransaction } from '../types';
 
 export const voiceService = {
-  // Simulates Sarvam STT
-  transcribe: async (): Promise<{ transcript: string }> => {
-    await sleep(600); // Network delay
-    return { transcript: 'Suresh ke khate mein do sau chalis rupaye likh lo dahi aur tel ke.' };
+  // Post audio to Sarvam STT
+  transcribe: async (audioBlob: Blob): Promise<{ transcript: string }> => {
+    const formData = new FormData();
+    formData.append('audio_file', audioBlob, 'recording.webm');
+    
+    // We pass isFormData = true to apiClient.post
+    const res = await apiClient.post('/voice/transcribe', formData, true);
+    return { transcript: res.data.transcript };
   },
 
-  // Simulates NLP extraction
-  extract: async (transcript: string) => {
-    await sleep(400); // Simulate processing
+  // Log credit directly (backend extracts and inserts into ledger)
+  logCredit: async (merchantId: string, transcript: string): Promise<UILedgerTransaction> => {
+    const res = await apiClient.post('/voice/log-credit', {
+      merchant_id: merchantId,
+      raw_transcript: transcript
+    });
+
+    // The backend responds with txn_id, customer_id, new_balance, confirmation_audio_text, confirmation_audio_base64
+    // We synthesize a UILedgerTransaction to add to the UI state immediately if needed, 
+    // though the UI typically refetches recent-transactions anyway.
     return {
-      customer_name: 'Suresh',
-      amount: 240,
-      items: ['Dahi', 'Tel'],
-      type: 'CREDIT_ADDED'
-    };
-  },
-
-  // Simulates POST /v1/voice/log-credit (FAST PATH)
-  logCredit: async (extractedData: any): Promise<UILedgerTransaction> => {
-    // 1. Resolve customer
-    const canonicalKey = extractedData.customer_name.toLowerCase().trim();
-    let customer = db.customers.find(c => c.canonical_key === canonicalKey);
-    
-    if (!customer) {
-      customer = {
-        customer_id: `cus_${Math.random().toString(16).slice(2, 8)}`,
-        merchant_id: CURRENT_MERCHANT.merchant_id,
-        display_name: extractedData.customer_name,
-        canonical_key: canonicalKey,
-        phone: null,
-        created_at: new Date().toISOString()
-      };
-      db.customers.push(customer);
-    }
-
-    // 2. Create Ledger Transaction instantly
-    const txn: UILedgerTransaction = {
-      txn_id: `txn_${Math.random().toString(16).slice(2, 8)}`,
-      merchant_id: CURRENT_MERCHANT.merchant_id,
-      customer_id: customer.customer_id,
-      amount: extractedData.amount,
-      txn_type: extractedData.type,
-      items: extractedData.items,
+      txn_id: res.data.txn_id,
+      merchant_id: merchantId,
+      customer_id: res.data.customer_id,
+      amount: res.data.amount || 0, // Fallback if backend doesn't return exact amount
+      txn_type: 'CREDIT_ADDED',
+      items: [],
       source: 'VOICE',
-      extraction_confidence: 0.91,
+      extraction_confidence: 0.99,
       created_at: new Date().toISOString(),
-      sync_status: 'PENDING'
+      sync_status: 'PENDING',
+      confirmation_audio_text: res.data.confirmation_audio_text,
+      confirmation_audio_base64: res.data.confirmation_audio_base64
     };
-    
-    db.transactions.unshift(txn); // Prepend for UI
-    db.notify();
-
-    // 3. Trigger Background Sync (BACKGROUND PATH - Do not await)
-    voiceService.simulateBackgroundSync(txn.txn_id);
-    voiceService.simulatePaymentLinkDispatch(customer.display_name, extractedData.amount);
-
-    return txn;
-  },
-
-  // Simulates n8n outbox poller picking up the pending row
-  simulateBackgroundSync: async (txnId: string) => {
-    // Wait for 3-5 seconds to simulate Cognee indexing delay
-    await sleep(3000 + Math.random() * 2000);
-    
-    const txn = db.transactions.find(t => t.txn_id === txnId);
-    if (txn) {
-      txn.sync_status = 'SYNCED';
-      db.notify();
-    }
-  },
-
-  simulatePaymentLinkDispatch: async (customerName: string, amount: number) => {
-     // Simulate sending WhatsApp message via n8n
-     await sleep(2000);
-     // We can hook this into a notification service later
-     console.log(`[Automation] Payment link sent to ${customerName} for ₹${amount}`);
   }
 };

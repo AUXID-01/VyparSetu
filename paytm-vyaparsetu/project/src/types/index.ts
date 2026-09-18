@@ -85,6 +85,8 @@ export type Alert = {
 // UI Specific Types
 export type UILedgerTransaction = LedgerTransaction & {
   sync_status: OutboxStatus;
+  confirmation_audio_text?: string;
+  confirmation_audio_base64?: string;
 };
 
 export type UIInvoice = Invoice & {

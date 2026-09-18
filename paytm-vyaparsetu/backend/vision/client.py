@@ -19,7 +19,7 @@ def _call_groq_vision(b64_image: str, ocr_text: str, request_id: str) -> Tuple[D
     api_key = settings.GROQ_API_KEY
     if not api_key:
         logger.error(f"❌ [{request_id}] GROQ_API_KEY missing.")
-        raise Exception("GROQ_API_KEY missing")
+        raise AppException(code="VISION_API_ERROR", message="GROQ_API_KEY missing", status_code=500)
         
     url = "https://api.groq.com/openai/v1/chat/completions"
     
@@ -43,15 +43,16 @@ def _call_groq_vision(b64_image: str, ocr_text: str, request_id: str) -> Tuple[D
     }
     
     logger.info(f"🎯 [{request_id}] Calling Tier 1 (Groq Vision)...")
-    res = httpx.post(url, json=payload, headers=headers, timeout=45.0)
+    res = httpx.post(url, json=payload, headers=headers, timeout=90.0)
     if res.status_code == 200:
         data = res.json()
         content = data["choices"][0]["message"]["content"]
         cleaned_json = re.sub(r'^```(?:json)?\s*|\s*```$', '', content, flags=re.MULTILINE).strip()
         return json.loads(cleaned_json), data
     else:
-        logger.error(f"❌ [{request_id}] Groq API Error {res.status_code}: {res.text}")
-        raise Exception("Groq API failed")
+        err_msg = res.text
+        logger.error(f"❌ [{request_id}] Groq API Error {res.status_code}: {err_msg}")
+        raise AppException(code="VISION_API_ERROR", message=f"Groq API failed: {err_msg}", status_code=502)
 
 def _call_openai_vision(b64_image: str, ocr_text: str, request_id: str) -> Tuple[Dict[str, Any], str]:
     """Tier 2: Escalation to Frontier Model (GPT-4o)."""
@@ -97,8 +98,9 @@ def _call_openai_vision(b64_image: str, ocr_text: str, request_id: str) -> Tuple
         cleaned_json = re.sub(r'^```(?:json)?\s*|\s*```$', '', content, flags=re.MULTILINE).strip()
         return json.loads(cleaned_json), data
     else:
-        logger.error(f"❌ [{request_id}] OpenAI API Error {res.status_code}: {res.text}")
-        raise Exception("OpenAI API failed")
+        err_msg = res.text
+        logger.error(f"❌ [{request_id}] OpenAI API Error {res.status_code}: {err_msg}")
+        raise AppException(code="VISION_API_ERROR", message=f"OpenAI API failed: {err_msg}", status_code=502)
 
 
 
@@ -126,12 +128,12 @@ def extract_challan_pipeline(
     
     try:
         parsed_json, raw_response = _call_groq_vision(b64_color, ocr_text, request_id)
-    except Exception as e:
-        logger.error(f"❌ [{request_id}] Tier 1 failed, and OpenAI escalation is disabled. Error: {e}")
-        # parsed_json, raw_response = _call_openai_vision(b64_color, ocr_text, request_id)
-        # model_used = "openai/gpt-4o"
-        # escalated = True
+    except AppException as e:
+        logger.error(f"❌ [{request_id}] Vision API Exception: {str(e)}")
         raise e
+    except Exception as e:
+        logger.error(f"❌ [{request_id}] Unexpected Pipeline Error: {str(e)}", exc_info=True)
+        raise AppException(code="EXTRACTION_FAILED", message=f"Extraction pipeline failed: {str(e)}", status_code=500)
     
     # Evaluate Escalation Criteria if Tier 1 succeeded
     if not escalated:

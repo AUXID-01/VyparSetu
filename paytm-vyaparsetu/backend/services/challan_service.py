@@ -2,6 +2,7 @@ import httpx
 from typing import Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
+from decimal import Decimal
 
 from core.errors import AppException, ErrorCode
 from core.ids import generate_id
@@ -12,6 +13,22 @@ import db.repositories.distributors_repo as distributors_repo
 import db.repositories.invoices_repo as invoices_repo
 
 logger = get_logger("services.challan")
+
+def get_merchant_available_settlement_balance(db: Session, merchant_id: str) -> Decimal:
+    # Base working capital: Decimal("5200.00") (seeded morning settlement balance)
+    base_balance = Decimal("5200.00")
+    
+    # Subtract SUM(total_amount) from invoices where merchant_id = merchant_id AND is_paid = True
+    paid_total = db.query(func.sum(Invoice.total_amount)).filter(
+        Invoice.merchant_id == merchant_id,
+        Invoice.is_paid == True
+    ).scalar()
+    
+    if paid_total is None:
+        paid_total = Decimal("0.00")
+        
+    return base_balance - Decimal(paid_total)
+
 
 def confirm_challan(db: Session, merchant_id: str, payload: Dict[str, Any], request_id: str) -> Dict[str, Any]:
     # 1. Parse and validate
@@ -110,25 +127,16 @@ def confirm_challan(db: Session, merchant_id: str, payload: Dict[str, Any], requ
         raise AppException(code="DATABASE_ERROR", message=f"DB Error: {str(e)}", status_code=500)
 
     # Settlement Calculation
-    balance_available = 0.0
-    try:
-        res = httpx.get("http://localhost:8001/balance", timeout=5.0)
-        if res.status_code == 200:
-            balance_available = float(res.json().get("balance", 5200.00))
-        else:
-            balance_available = 5200.00 # fallback mock
-    except Exception:
-        balance_available = 5200.00 # fallback mock
-        
-    remaining_after = balance_available - float(invoice.total_amount)
+    balance_available = get_merchant_available_settlement_balance(db, merchant_id)
+    remaining_after = balance_available - Decimal(str(invoice.total_amount))
     
     return {
         "invoice_id": invoice.invoice_id,
         "rate_alerts": rate_alerts,
         "settlement": {
             "invoice_total": float(invoice.total_amount),
-            "balance_available": balance_available,
-            "remaining_after": remaining_after
+            "balance_available": float(balance_available),
+            "remaining_after": float(remaining_after)
         }
     }
 
@@ -140,6 +148,14 @@ def settle_invoice(db: Session, invoice_id: str, request_id: str) -> Dict[str, A
         
     if invoice.is_paid:
         return {"payout_status": "SUCCEEDED", "payout_reference": invoice.payout_reference}
+        
+    available = get_merchant_available_settlement_balance(db, invoice.merchant_id)
+    if Decimal(str(invoice.total_amount)) > available:
+        raise AppException(
+            code="INSUFFICIENT_FUNDS",
+            message="Settlement balance insufficient to clear payout",
+            status_code=400
+        )
         
     # Call mock Paytm payout
     # TODO: Phase 8 — route this through n8n Vendor Payout webhook instead of calling mock_paytm directly
@@ -168,8 +184,8 @@ def settle_invoice(db: Session, invoice_id: str, request_id: str) -> Dict[str, A
     if status == "SUCCESS":
         invoice.is_paid = True
         invoice.paid_at = func.now()
-        invoice.payout_reference = ref
+        invoice.payout_reference = f"PAYTM-PAY-{invoice.invoice_id}"
         db.commit()
-        return {"payout_status": "INITIATED", "payout_reference": ref}
+        return {"payout_status": "INITIATED", "payout_reference": invoice.payout_reference}
     else:
         return {"payout_status": "FAILED", "failure_reason": "Mock payout failed"}

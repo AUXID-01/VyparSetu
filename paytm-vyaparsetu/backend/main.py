@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routes import merchants, voice, query
+from api.routes import merchants, voice, query, challan
 from api.deps import request_id_middleware
 from core.errors import app_exception_handler, AppException
 
@@ -22,6 +22,8 @@ app.add_exception_handler(AppException, app_exception_handler)
 app.include_router(merchants.router, prefix="/api/v1/merchants", tags=["merchants"])
 app.include_router(voice.router, prefix="/api/v1/voice", tags=["voice"])
 app.include_router(query.router, prefix="/api/v1/query", tags=["query"])
+app.include_router(challan.router, prefix="/api/v1/challan", tags=["challan"])
+
 
 @app.get("/health")
 def health():

@@ -110,9 +110,24 @@ class Invoice(Base):
     payout_reference = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
+    # Extended Challan Metadata
+    challan_type = Column(Text, nullable=True)
+    capture_medium = Column(Text, nullable=True)
+    challan_number = Column(Text, nullable=True)
+    distributor_gstin = Column(Text, nullable=True)
+    vehicle_number = Column(Text, nullable=True)
+    payment_handle_type = Column(Text, nullable=True)
+    payment_handle_value = Column(Text, nullable=True)
+    tax_cgst = Column(Numeric(10, 2), nullable=True)
+    tax_sgst = Column(Numeric(10, 2), nullable=True)
+    tax_igst = Column(Numeric(10, 2), nullable=True)
+    additional_charges = Column(Numeric(10, 2), nullable=False, default=0, server_default="0")
+
     merchant = relationship("Merchant", back_populates="invoices")
     distributor = relationship("Distributor", back_populates="invoices")
     line_items = relationship("InvoiceLineItem", back_populates="invoice")
+    packaging_adjustments = relationship("InvoicePackagingAdjustment", back_populates="invoice")
+    extraction_audits = relationship("InvoiceExtractionAudit", back_populates="invoice")
 
 
 class InvoiceLineItem(Base):
@@ -122,8 +137,14 @@ class InvoiceLineItem(Base):
     invoice_id = Column(Text, ForeignKey("invoices.invoice_id"), nullable=False)
     distributor_id = Column(Text, ForeignKey("distributors.distributor_id"), nullable=False)
     sku = Column(Text, nullable=False)
-    quantity = Column(Integer, nullable=False)
+    quantity = Column(Numeric(10, 2), nullable=False) # Changed to Numeric(10,2) to support float quantities (kg, crates)
     unit_price = Column(Numeric(10, 2), nullable=False)
+
+    # Extended Line Item Metadata
+    raw_text = Column(Text, nullable=True)
+    unit = Column(Text, nullable=True)
+    hsn_code = Column(Text, nullable=True)
+    is_free_scheme = Column(Boolean, nullable=False, default=False, server_default="false")
 
     invoice = relationship("Invoice", back_populates="line_items")
     distributor = relationship("Distributor", back_populates="invoice_line_items")
@@ -131,6 +152,33 @@ class InvoiceLineItem(Base):
     __table_args__ = (
         Index("idx_line_item_rate_lookup", "distributor_id", "sku", "invoice_id"),
     )
+
+
+class InvoicePackagingAdjustment(Base):
+    __tablename__ = "invoice_packaging_adjustments"
+
+    adjustment_id = Column(Text, primary_key=True)
+    invoice_id = Column(Text, ForeignKey("invoices.invoice_id"), nullable=False)
+    item_name = Column(Text, nullable=False)
+    direction = Column(Text, nullable=False)
+    quantity = Column(Integer, nullable=False)
+
+    invoice = relationship("Invoice", back_populates="packaging_adjustments")
+
+
+class InvoiceExtractionAudit(Base):
+    __tablename__ = "invoice_extraction_audit"
+
+    audit_id = Column(Text, primary_key=True)
+    invoice_id = Column(Text, ForeignKey("invoices.invoice_id"), nullable=False)
+    ocr_raw_text = Column(Text, nullable=True)
+    vision_llm_raw_response = Column(JSONB, nullable=False)
+    model_used = Column(Text, nullable=False)
+    escalated = Column(Boolean, nullable=False, default=False, server_default="false")
+    merchant_edited_fields = Column(ARRAY(Text), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    invoice = relationship("Invoice", back_populates="extraction_audits")
 
 
 class SettlementDailyRollup(Base):

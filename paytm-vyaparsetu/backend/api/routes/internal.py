@@ -26,6 +26,9 @@ class PayoutCallbackRequest(BaseModel):
     utr_reference: Optional[str] = None
     failure_reason: Optional[str] = None
 
+class AlertDispatchRequest(BaseModel):
+    alert_id: str
+
 class MemorySyncRequest(BaseModel):
     event_id: str
     merchant_id: str
@@ -226,4 +229,20 @@ def payout_callback(
     
     logger.info(f"📤 [{req_id}] [JSON Payload] POST /internal/payout/callback egress: {result_data}")
     return success_envelope(result_data)
+
+@router.post("/alerts/dispatch-payload")
+def dispatch_alert_payload(
+    request: Request,
+    payload: AlertDispatchRequest,
+    db: Session = Depends(get_db)
+):
+    from services import alert_service
+    req_id = getattr(request.state, "request_id", "N/A")
+    logger.info(f"📥 [{req_id}] [JSON Payload] POST /internal/alerts/dispatch-payload ingress: {payload.model_dump()}")
+    
+    dispatch_data = alert_service.format_alert_dispatch_payload(db, payload.alert_id)
+    
+    logger.info(f"📤 [{req_id}] [JSON Payload] POST /internal/alerts/dispatch-payload egress: {dispatch_data}")
+    return success_envelope(dispatch_data)
+
 

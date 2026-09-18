@@ -13,6 +13,12 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GROQ_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
+    COGNEE_API_KEY: str = ""
+    COGNEE_API_URL: str = "https://api.cognee.ai"
+    
+    # Cognee Graph RAG Cloud Config
+    COGNEE_SKIP_CONNECTION_TEST: str = "true"
+    
     INTERNAL_TOKEN: str = "vyapar_internal_secret_token_123"
     PORT: int = 8000
     ENVIRONMENT: str = "development"

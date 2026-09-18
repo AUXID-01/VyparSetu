@@ -146,6 +146,13 @@ def process_voice_credit_audio(
         "txn_id": txn.txn_id,
         "customer_id": customer.customer_id,
         "new_balance": float(new_balance),
+        "transcript": raw_transcript,
+        "extracted": {
+            "customer_name": customer.display_name,
+            "amount": float(txn.amount),
+            "items": extracted.get("items", []),
+            "confidence": confidence
+        },
         "confirmation_audio_text": confirmation_text,
         "confirmation_audio_b64": confirmation_audio_b64
     }

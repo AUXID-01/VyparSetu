@@ -10,7 +10,8 @@ rand_suffix = str(random.randint(1000, 9999))
 r1 = httpx.post(f"{base_url}/merchants", json={
     "shop_name": "Test Store",
     "owner_name": "Ramesh",
-    "phone": f"+9190000{rand_suffix}"
+    "phone": f"+9190000{rand_suffix}",
+    "password": "password123"
 })
 print(r1.status_code, r1.text)
 merchant_id = r1.json()["data"]["merchant_id"]

@@ -1,39 +1,89 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic, CheckCircle2 } from 'lucide-react';
-import { Button } from '../ui/Button';
+import { Mic, CheckCircle2, Square } from 'lucide-react';
 import { StatusBadge } from '../ui/StatusBadge';
-import { voiceService } from '../../services/voiceService';
+import { apiClient } from '../../services/apiClient';
+import { useAuth } from '../../contexts/AuthContext';
 
 export const VoiceRecorder: React.FC = () => {
-  const [state, setState] = useState<'IDLE' | 'LISTENING' | 'UNDERSTANDING' | 'CONFIRM' | 'RECORDED'>('IDLE');
-  const [extracted, setExtracted] = useState<any>(null);
+  const [state, setState] = useState<'IDLE' | 'LISTENING' | 'UNDERSTANDING' | 'RECORDED' | 'ERROR'>('IDLE');
   const [recordedTxn, setRecordedTxn] = useState<any>(null);
+  const [errorMsg, setErrorMsg] = useState('');
+  
+  const { auth } = useAuth();
+  
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
 
   const startRecording = async () => {
-    setState('LISTENING');
-    // Simulate recording time
-    setTimeout(async () => {
-      setState('UNDERSTANDING');
-      const { transcript } = await voiceService.transcribe();
-      const data = await voiceService.extract(transcript);
-      setExtracted(data);
-      setState('CONFIRM');
-    }, 2000);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      chunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunksRef.current.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        await processAudio(audioBlob);
+        
+        // Stop all tracks
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setState('LISTENING');
+    } catch (err) {
+      console.error("Error accessing microphone:", err);
+      setErrorMsg("Could not access microphone");
+      setState('ERROR');
+      setTimeout(() => setState('IDLE'), 3000);
+    }
   };
 
-  const handleConfirm = async () => {
-    // 1. Instantly log it on the frontend (FAST PATH)
-    const txn = await voiceService.logCredit(extracted);
-    setRecordedTxn(txn);
-    setState('RECORDED');
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && state === 'LISTENING') {
+      mediaRecorderRef.current.stop();
+    }
+  };
 
-    // Reset after a while
-    setTimeout(() => {
-      setState('IDLE');
-      setExtracted(null);
-      setRecordedTxn(null);
-    }, 5000);
+  const processAudio = async (audioBlob: Blob) => {
+    setState('UNDERSTANDING');
+    try {
+      const formData = new FormData();
+      if (!auth.merchantId) throw new Error("Not authenticated");
+      
+      formData.append('merchant_id', auth.merchantId);
+      // Fastapi expects a file named 'audio'
+      formData.append('audio', audioBlob, 'recording.webm');
+      
+      const res = await apiClient.post('/voice/log-credit-from-audio', formData, true);
+      
+      if (res.data) {
+        setRecordedTxn(res.data);
+        setState('RECORDED');
+        
+        if (res.data.confirmation_audio_b64) {
+          const audio = new Audio("data:audio/wav;base64," + res.data.confirmation_audio_b64);
+          audio.play();
+        }
+        
+        setTimeout(() => {
+          setState('IDLE');
+          setRecordedTxn(null);
+        }, 5000);
+      }
+    } catch (err: any) {
+      console.error("Audio processing failed:", err);
+      setErrorMsg(err.message || "Failed to process audio");
+      setState('ERROR');
+      setTimeout(() => setState('IDLE'), 4000);
+    }
   };
 
   return (
@@ -72,16 +122,18 @@ export const VoiceRecorder: React.FC = () => {
                   key={i}
                   className="w-1.5 bg-sage-500 rounded-full"
                   animate={{ height: [12, 40, 12] }}
-                  transition={{
-                    repeat: Infinity,
-                    duration: 0.8,
-                    delay: i * 0.1,
-                    ease: "easeInOut"
-                  }}
+                  transition={{ repeat: Infinity, duration: 0.8, delay: i * 0.1, ease: "easeInOut" }}
                 />
               ))}
             </div>
-            <p className="mt-4 text-sage-600 font-medium animate-pulse">Listening...</p>
+            
+            <button 
+              onClick={stopRecording}
+              className="mt-6 w-12 h-12 rounded-full bg-danger/10 text-danger flex items-center justify-center hover:bg-danger/20 transition-colors"
+            >
+              <Square className="w-4 h-4 fill-current" />
+            </button>
+            <p className="mt-2 text-sage-600 font-medium text-sm">Tap to stop</p>
           </motion.div>
         )}
 
@@ -94,47 +146,31 @@ export const VoiceRecorder: React.FC = () => {
             className="flex flex-col items-center justify-center py-10"
           >
             <div className="w-8 h-8 border-3 border-sage-200 border-t-sage-500 rounded-full animate-spin" />
-            <p className="mt-4 text-ink-500 font-medium">Understanding...</p>
+            <p className="mt-4 text-ink-500 font-medium text-sm">Transcribing Audio & Extracting...</p>
           </motion.div>
         )}
 
-        {state === 'CONFIRM' && extracted && (
+        {state === 'ERROR' && (
           <motion.div
-            key="confirm"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
+            key="error"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
-            className="flex flex-col"
+            className="flex flex-col items-center justify-center py-4 text-center"
           >
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center text-sage-600">
-                <Mic className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="font-semibold text-ink-800">Confirm details</h4>
-                <p className="text-xs text-ink-400">Please review before saving</p>
-              </div>
+            <div className="w-12 h-12 rounded-full bg-danger/10 flex items-center justify-center mb-3 text-danger">
+              <span className="text-xl font-bold">!</span>
             </div>
-
-            <div className="bg-cream-50 rounded-xl p-4 mb-5 space-y-3">
-              <div className="flex justify-between">
-                <span className="text-ink-400 text-sm">Customer</span>
-                <span className="font-medium text-ink-800">{extracted.customer_name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-ink-400 text-sm">Amount</span>
-                <span className="font-semibold text-danger text-lg">₹{extracted.amount}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-ink-400 text-sm">Items</span>
-                <span className="font-medium text-ink-700">{extracted.items.join(', ')}</span>
-              </div>
+            <p className="text-danger font-semibold text-sm mb-2">Processing Error</p>
+            <div className="w-full bg-danger/5 p-3 rounded-xl border border-danger/20 text-left mb-4 text-xs text-danger break-words max-h-28 overflow-y-auto">
+              {errorMsg}
             </div>
-
-            <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => setState('IDLE')}>Edit</Button>
-              <Button variant="primary" className="flex-1" onClick={handleConfirm}>Confirm Credit</Button>
-            </div>
+            <button
+              onClick={() => { setState('IDLE'); setErrorMsg(''); }}
+              className="text-xs font-medium text-ink-600 hover:text-ink-900 underline"
+            >
+              Try Again
+            </button>
           </motion.div>
         )}
 
@@ -144,18 +180,38 @@ export const VoiceRecorder: React.FC = () => {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
-            className="flex flex-col items-center justify-center text-center py-6"
+            className="flex flex-col items-center justify-center text-center py-4"
           >
-            <div className="w-16 h-16 rounded-full bg-positive/10 flex items-center justify-center mb-4 text-positive">
-              <CheckCircle2 className="w-8 h-8" />
+            <div className="w-12 h-12 rounded-full bg-positive/10 flex items-center justify-center mb-2 text-positive">
+              <CheckCircle2 className="w-6 h-6" />
             </div>
-            <h3 className="text-lg font-semibold text-ink-800 mb-1">Credit Recorded</h3>
-            <p className="text-sm text-ink-500 mb-6">
-              <span className="font-medium">{recordedTxn.customer_name || 'Customer'}</span>'s account credited with <span className="font-medium">₹{recordedTxn.amount}</span>.
-            </p>
+            <h3 className="text-base font-semibold text-ink-800 mb-2">Credit Recorded</h3>
             
-            {/* The crucial background sync indicator */}
-            <StatusBadge status={recordedTxn.sync_status} />
+            {recordedTxn.transcript && (
+              <div className="w-full bg-sage-50 p-2.5 rounded-xl border border-sage-200 text-left mb-3">
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-sage-600 block mb-0.5">Real-Time Transcription</span>
+                <p className="text-xs text-ink-800 italic">"{recordedTxn.transcript}"</p>
+              </div>
+            )}
+
+            {recordedTxn.extracted && (
+              <div className="flex flex-wrap gap-1.5 justify-center mb-3 text-xs font-medium">
+                {recordedTxn.extracted.customer_name && (
+                  <span className="bg-sage-100 text-sage-800 px-2 py-0.5 rounded-md">👤 {recordedTxn.extracted.customer_name}</span>
+                )}
+                {recordedTxn.extracted.amount > 0 && (
+                  <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md">₹{recordedTxn.extracted.amount}</span>
+                )}
+                {recordedTxn.extracted.items?.map((item: string, idx: number) => (
+                  <span key={idx} className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md">🛒 {item}</span>
+                ))}
+              </div>
+            )}
+
+            <p className="text-xs text-ink-500 mb-3">
+              New balance: <span className="font-semibold text-ink-800">₹{recordedTxn.new_balance}</span>
+            </p>
+            <StatusBadge status="PENDING" />
           </motion.div>
         )}
       </AnimatePresence>

@@ -211,7 +211,7 @@ export const VoiceRecorder: React.FC = () => {
             <p className="text-xs text-ink-500 mb-3">
               New balance: <span className="font-semibold text-ink-800">₹{recordedTxn.new_balance}</span>
             </p>
-            <StatusBadge status="PENDING" />
+            <StatusBadge status="RECORDED" label="Recorded" />
           </motion.div>
         )}
       </AnimatePresence>

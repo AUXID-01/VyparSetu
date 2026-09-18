@@ -2,6 +2,8 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import { Dashboard } from './pages/Dashboard';
+import { Customers } from './pages/Customers';
+import { Transactions } from './pages/Transactions';
 import { Challans } from './pages/Challans';
 import { Insights } from './pages/Insights';
 import { Automation } from './pages/Automation';
@@ -25,13 +27,13 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/dashboard" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
             <Route index element={<Dashboard />} />
-            <Route path="customers" element={<div className="p-8 text-center text-ink-500">Customers (Coming soon)</div>} />
-            <Route path="transactions" element={<div className="p-8 text-center text-ink-500">Transactions (Coming soon)</div>} />
+            <Route path="customers" element={<Customers />} />
+            <Route path="transactions" element={<Transactions />} />
             <Route path="challans" element={<Challans />} />
-            <Route path="settlements" element={<div className="p-8 text-center text-ink-500">Settlements (Coming soon)</div>} />
+            <Route path="settlements" element={<div className="p-8 text-center text-ink-500 font-medium">Settlements (Available in Phase 6)</div>} />
             <Route path="insights" element={<Insights />} />
             <Route path="automation" element={<Automation />} />
-            <Route path="notifications" element={<div className="p-8 text-center text-ink-500">Notifications (Coming soon)</div>} />
+            <Route path="notifications" element={<div className="p-8 text-center text-ink-500 font-medium">Notifications (Available in Phase 8)</div>} />
             <Route path="settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Route>

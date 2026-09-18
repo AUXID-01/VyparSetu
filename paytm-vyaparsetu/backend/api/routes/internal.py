@@ -8,10 +8,16 @@ from core.errors import success_envelope, AppException, ErrorCode
 from core.logging import get_logger
 import db.repositories.outbox_repo as outbox_repo
 import memory
+from services import payment_service
 
 logger = get_logger("api.routes.internal")
 
 router = APIRouter(dependencies=[Depends(verify_internal_token)])
+
+class PaymentLinkRequest(BaseModel):
+    merchant_id: str
+    customer_id: str
+    amount: float
 
 class MemorySyncRequest(BaseModel):
     event_id: str
@@ -118,3 +124,19 @@ async def memory_sync(
     result_data = {"event_id": payload.event_id, "status": "COGNIFIED"}
     logger.info(f"📤 [{req_id}] [JSON Payload] POST /internal/memory/sync egress: {result_data}")
     return success_envelope(result_data)
+
+@router.post("/notifications/payment-link")
+def dispatch_payment_link(
+    request: Request,
+    payload: PaymentLinkRequest,
+    db: Session = Depends(get_db)
+):
+    req_id = getattr(request.state, "request_id", "N/A")
+    logger.info(f"📥 [{req_id}] [JSON Payload] POST /internal/notifications/payment-link ingress: {payload.model_dump()}")
+    
+    link_payload = payment_service.generate_payment_link_payload(
+        db, payload.merchant_id, payload.customer_id, payload.amount
+    )
+    
+    logger.info(f"📤 [{req_id}] [JSON Payload] POST /internal/notifications/payment-link egress: {link_payload}")
+    return success_envelope(link_payload)

@@ -6,8 +6,36 @@ from api.deps import get_db
 from db.models import LedgerTransaction, Customer, Invoice, Distributor
 from core.errors import success_envelope, AppException, ErrorCode
 from core.enums import TxnType
+from pydantic import BaseModel
+from fastapi import Request
+from core.logging import get_logger
+from services.query_service import answer_grounded_question
+
+logger = get_logger("api.routes.query")
+
+class QARequest(BaseModel):
+    merchant_id: str
+    question: str
 
 router = APIRouter()
+
+@router.post("/ask")
+async def ask_grounded_question(
+    request: Request,
+    payload: QARequest,
+    db: Session = Depends(get_db)
+):
+    req_id = getattr(request.state, "request_id", "N/A")
+    logger.info(f"📥 [{req_id}] [JSON Payload] POST /api/v1/query/ask ingress: {payload.model_dump()}")
+    
+    result = await answer_grounded_question(
+        db=db, 
+        merchant_id=payload.merchant_id, 
+        question=payload.question
+    )
+    
+    logger.info(f"📤 [{req_id}] [JSON Payload] POST /api/v1/query/ask egress: {result}")
+    return success_envelope(result)
 
 @router.get("/customer-due/{customer_id}")
 def get_customer_due(customer_id: str, db: Session = Depends(get_db)):

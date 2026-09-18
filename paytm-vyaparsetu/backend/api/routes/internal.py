@@ -29,6 +29,9 @@ class PayoutCallbackRequest(BaseModel):
 class AlertDispatchRequest(BaseModel):
     alert_id: str
 
+class ProvisionDatasetRequest(BaseModel):
+    merchant_id: str
+
 class MemorySyncRequest(BaseModel):
     event_id: str
     merchant_id: str
@@ -244,5 +247,43 @@ def dispatch_alert_payload(
     
     logger.info(f"📤 [{req_id}] [JSON Payload] POST /internal/alerts/dispatch-payload egress: {dispatch_data}")
     return success_envelope(dispatch_data)
+
+@router.post("/merchants/provision-dataset")
+def provision_merchant_dataset(
+    request: Request,
+    payload: ProvisionDatasetRequest,
+    db: Session = Depends(get_db)
+):
+    from db.models import Merchant
+    from memory.dataset_manager import get_dataset_for_merchant
+    
+    req_id = getattr(request.state, "request_id", "N/A")
+    logger.info(f"📥 [{req_id}] [JSON Payload] POST /internal/merchants/provision-dataset ingress: {payload.model_dump()}")
+    
+    merchant = db.query(Merchant).filter(Merchant.merchant_id == payload.merchant_id).first()
+    if not merchant:
+        raise AppException(
+            code="MERCHANT_NOT_FOUND",
+            message=f"Merchant {payload.merchant_id} not found",
+            status_code=404
+        )
+        
+    dataset_name = get_dataset_for_merchant(db, payload.merchant_id)
+    
+    welcome_message = f"नमस्ते {merchant.owner_name}! Paytm VyaparSetu में आपका स्वागत है। {merchant.shop_name} के लिए आपका स्मार्ट खाता और AI बहीखाता तैयार है।"
+    
+    result_data = {
+        "merchant_id": payload.merchant_id,
+        "dataset_name": dataset_name,
+        "owner_name": merchant.owner_name,
+        "shop_name": merchant.shop_name,
+        "phone": merchant.phone,
+        "welcome_message": welcome_message,
+        "status": "PROVISIONED"
+    }
+    
+    logger.info(f"📤 [{req_id}] [JSON Payload] POST /internal/merchants/provision-dataset egress: {result_data}")
+    return success_envelope(result_data)
+
 
 

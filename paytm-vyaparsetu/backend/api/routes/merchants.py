@@ -1,5 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
+import httpx
+from config import settings
 from pydantic import BaseModel
 from api.deps import get_db
 from db.repositories import merchants_repo
@@ -17,7 +19,7 @@ class MerchantLoginReq(BaseModel):
     phone: str
     password: str
 @router.post("")
-def create_merchant(req: MerchantCreateReq, db: Session = Depends(get_db)):
+def create_merchant(req: MerchantCreateReq, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     existing = merchants_repo.get_merchant_by_phone(db, req.phone)
     if existing:
         raise AppException(
@@ -33,8 +35,18 @@ def create_merchant(req: MerchantCreateReq, db: Session = Depends(get_db)):
         phone=req.phone
     )
     
-    # TODO: wire n8n onboarding webhook in Phase 8
-    
+    def trigger_n8n_onboarding(merchant_id: str, shop_name: str, phone: str):
+        from core.logging import get_logger
+        logger = get_logger("routes.merchants")
+        try:
+            url = getattr(settings, "N8N_ONBOARDING_WEBHOOK_URL", "http://localhost:5678/webhook/merchant-onboarding")
+            payload = {"merchant_id": merchant_id, "shop_name": shop_name, "phone": phone}
+            logger.info(f"📤 [Onboarding] Dispatching to n8n webhook -> {payload}")
+            httpx.post(url, json=payload, timeout=5.0)
+        except Exception as e:
+            logger.warning(f"⚠️ [Onboarding] n8n Webhook unreachable, merchant registration succeeds anyway. {e}")
+
+    background_tasks.add_task(trigger_n8n_onboarding, merchant.merchant_id, merchant.shop_name, merchant.phone)
     return success_envelope({
         "merchant_id": merchant.merchant_id,
         "shop_name": merchant.shop_name,

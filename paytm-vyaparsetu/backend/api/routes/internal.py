@@ -7,10 +7,17 @@ from api.deps import get_db, verify_internal_token
 from core.errors import success_envelope, AppException, ErrorCode
 from core.logging import get_logger
 import db.repositories.outbox_repo as outbox_repo
+import memory
 
 logger = get_logger("api.routes.internal")
 
 router = APIRouter(dependencies=[Depends(verify_internal_token)])
+
+class MemorySyncRequest(BaseModel):
+    event_id: str
+    merchant_id: str
+    event_type: str
+    payload: dict
 
 class OutboxCallbackPayload(BaseModel):
     event_id: str
@@ -65,4 +72,28 @@ def outbox_callback(
         
     result_data = {"event_id": updated.event_id, "status": updated.status}
     logger.info(f"📤 [{req_id}] [JSON Payload] POST /internal/outbox/callback egress: {result_data}")
+    return success_envelope(result_data)
+
+@router.post("/memory/sync")
+async def memory_sync(
+    request: Request,
+    payload: MemorySyncRequest,
+    db: Session = Depends(get_db)
+):
+    req_id = getattr(request.state, "request_id", "N/A")
+    logger.info(f"📥 [{req_id}] [JSON Payload] POST /internal/memory/sync ingress: {payload.model_dump()}")
+    
+    dataset_name = memory.get_dataset_for_merchant(db, payload.merchant_id)
+    
+    if payload.event_type == "CREDIT_ADDED":
+        await memory.remember_transaction(dataset_name, payload.payload)
+    elif payload.event_type == "INVOICE_CREATED":
+        await memory.remember_invoice(dataset_name, payload.payload)
+    else:
+        logger.warning(f"Unhandled event_type: {payload.event_type}")
+        
+    await memory.cognify_dataset(dataset_name)
+    
+    result_data = {"event_id": payload.event_id, "status": "COGNIFIED"}
+    logger.info(f"📤 [{req_id}] [JSON Payload] POST /internal/memory/sync egress: {result_data}")
     return success_envelope(result_data)

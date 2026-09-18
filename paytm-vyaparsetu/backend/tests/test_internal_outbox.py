@@ -1,6 +1,7 @@
 import pytest
 import sys
 import os
+from unittest.mock import patch, AsyncMock
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from fastapi.testclient import TestClient
 from main import app
@@ -99,3 +100,37 @@ def test_outbox_callback_idempotent(db, sample_event):
     # Should still be SYNCED
     db.refresh(sample_event)
     assert sample_event.status == "SYNCED"
+
+def test_memory_sync_authorized():
+    headers = {"X-Internal-Token": settings.INTERNAL_TOKEN}
+    payload = {
+        "event_id": "evt_12345",
+        "merchant_id": "mer_test_outbox",
+        "event_type": "CREDIT_ADDED",
+        "payload": {"amount": 100}
+    }
+    
+    with patch("api.routes.internal.memory.get_dataset_for_merchant", return_value="ds_test"), \
+         patch("api.routes.internal.memory.remember_transaction", new_callable=AsyncMock) as mock_remember, \
+         patch("api.routes.internal.memory.cognify_dataset", new_callable=AsyncMock) as mock_cognify:
+         
+        response = client.post("/api/v1/internal/memory/sync", headers=headers, json=payload)
+        
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["event_id"] == "evt_12345"
+        assert data["status"] == "COGNIFIED"
+        
+        mock_remember.assert_awaited_once_with("ds_test", {"amount": 100})
+        mock_cognify.assert_awaited_once_with("ds_test")
+
+def test_memory_sync_unauthorized():
+    headers = {"X-Internal-Token": "invalid_token"}
+    payload = {
+        "event_id": "evt_12345",
+        "merchant_id": "mer_test_outbox",
+        "event_type": "CREDIT_ADDED",
+        "payload": {"amount": 100}
+    }
+    response = client.post("/api/v1/internal/memory/sync", headers=headers, json=payload)
+    assert response.status_code == 403

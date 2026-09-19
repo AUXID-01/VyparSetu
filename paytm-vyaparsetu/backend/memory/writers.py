@@ -81,3 +81,31 @@ async def remember_invoice(dataset_name: str, payload: dict) -> bool:
     except Exception as e:
         logger.error(f"Failed to map invoice to ontology: {e}")
         return False
+
+async def remember_payment(dataset_name: str, payload: dict) -> bool:
+    """
+    Ingests canonical payload from outbox CUSTOMER_PAYMENT_SETTLED event.
+    Payload shape expected: txn_id, customer_id, merchant_id, amount, customer_name
+    """
+    try:
+        cust = Customer(
+            customer_id=payload.get("customer_id", "unknown"),
+            merchant_id=payload.get("merchant_id", "unknown"),
+            display_name=payload.get("customer_name", "Unknown Customer")
+        )
+        
+        txn = Transaction(
+            txn_id=payload.get("txn_id", "unknown"),
+            customer_id=cust.customer_id,
+            amount=payload.get("amount", 0.0),
+            txn_type="CREDIT_PAID"
+        )
+        
+        data_to_add = [cust, txn]
+        
+        logger.info(f"Writing payment {txn.txn_id} to '{dataset_name}'")
+        return await add_payload(dataset_name, data_to_add)
+        
+    except Exception as e:
+        logger.error(f"Failed to map payment to ontology: {e}")
+        return False

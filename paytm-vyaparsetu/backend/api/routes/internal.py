@@ -136,6 +136,8 @@ async def memory_sync(
         await memory.remember_transaction(dataset_name, payload.payload)
     elif payload.event_type == "INVOICE_CREATED":
         await memory.remember_invoice(dataset_name, payload.payload)
+    elif payload.event_type == "CUSTOMER_PAYMENT_SETTLED":
+        await memory.remember_payment(dataset_name, payload.payload)
     else:
         logger.warning(f"Unhandled event_type: {payload.event_type}")
         

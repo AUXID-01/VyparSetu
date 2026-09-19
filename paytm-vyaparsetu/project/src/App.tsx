@@ -10,6 +10,7 @@ import { Insights } from './pages/Insights';
 import { Automation } from './pages/Automation';
 import { LandingPage } from './pages/LandingPage';
 import { Settings } from './pages/Settings';
+import { Notifications } from './pages/Notifications';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
@@ -34,7 +35,7 @@ function App() {
             <Route path="settlements" element={<Settlements />} />
             <Route path="insights" element={<Insights />} />
             <Route path="automation" element={<Automation />} />
-            <Route path="notifications" element={<div className="p-8 text-center text-ink-500 font-medium">Notifications (Available in Phase 8)</div>} />
+            <Route path="notifications" element={<Notifications />} />
             <Route path="settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Route>

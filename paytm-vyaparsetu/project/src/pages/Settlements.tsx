@@ -4,6 +4,7 @@ import { Button } from '../components/ui/Button';
 import { challanService } from '../services/challanService';
 import { FileText, CheckCircle2, AlertTriangle, ArrowRight, Loader2, ArrowUpRight } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { toast } from 'react-hot-toast';
 
 export const Settlements: React.FC = () => {
   const { t } = useLanguage();
@@ -33,10 +34,16 @@ export const Settlements: React.FC = () => {
     setRetryingIds(prev => new Set(prev).add(invoiceId));
     setErrorMsg(null);
     try {
-      await challanService.settle(invoiceId);
+      const result = await challanService.settle(invoiceId);
+      if (result.payout_status === 'FAILED') {
+        toast.error(`Payout Queued / Failed: ${result.failure_reason || 'Unknown error'}`);
+      } else {
+        toast.success(`Payout Disbursed (UTR: ${result.payout_reference || 'Pending'})`);
+      }
       await fetchSettlements(); // Refresh the list
     } catch (err: any) {
       setErrorMsg(err.message || 'Retry failed due to insufficient balance.');
+      toast.error('Retry failed due to insufficient balance.');
     } finally {
       setRetryingIds(prev => {
         const next = new Set(prev);

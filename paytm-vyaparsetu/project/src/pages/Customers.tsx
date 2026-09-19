@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Card } from '../components/ui/Card';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Button } from '../components/ui/Button';
-import { Search, UserCheck, ArrowUpRight, DollarSign, RefreshCw, ShoppingBag, Plus } from 'lucide-react';
+import { Search, UserCheck, ArrowUpRight, DollarSign, RefreshCw, ShoppingBag, Plus, Link as LinkIcon, Loader2 } from 'lucide-react';
 import { apiClient } from '../services/apiClient';
 import { useAuth } from '../contexts/AuthContext';
+import { toast } from 'react-hot-toast';
 
 export interface CustomerData {
   customer_id: string;
@@ -23,6 +24,10 @@ export const Customers: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [recordingPayment, setRecordingPayment] = useState(false);
 
   const fetchCustomers = async () => {
     if (!auth.merchantId) return;
@@ -38,6 +43,33 @@ export const Customers: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
+  };
+
+  const handleRecordPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCustomerId || !paymentAmount || parseFloat(paymentAmount) <= 0) return;
+    try {
+      setRecordingPayment(true);
+      await apiClient.post('/ledger/record-payment', {
+        customer_id: selectedCustomerId,
+        amount: parseFloat(paymentAmount)
+      });
+      toast.success("Payment recorded successfully!");
+      setShowPaymentModal(false);
+      setPaymentAmount('');
+      setSelectedCustomerId('');
+      fetchCustomers();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to record payment");
+    } finally {
+      setRecordingPayment(false);
+    }
+  };
+
+  const copyPaymentLink = (customer: CustomerData) => {
+    const link = `https://paytm.me/mock-${customer.customer_id.slice(-6)}`;
+    navigator.clipboard.writeText(link);
+    toast.success(`Copied payment link for ${customer.display_name}`);
   };
 
   useEffect(() => {
@@ -66,6 +98,15 @@ export const Customers: React.FC = () => {
         </div>
         
         <div className="flex items-center gap-3">
+          <Button 
+            variant="primary" 
+            size="sm" 
+            onClick={() => setShowPaymentModal(true)}
+            className="flex items-center gap-2"
+          >
+            <DollarSign className="w-4 h-4" />
+            <span>Record Payment</span>
+          </Button>
           <Button 
             variant="outline" 
             size="sm" 
@@ -174,9 +215,20 @@ export const Customers: React.FC = () => {
                       {formatCurrency(cust.total_credits)}
                     </td>
                     <td className="py-4 px-4 text-right font-bold text-base">
-                      <span className={cust.total_due > 0 ? 'text-danger' : 'text-positive'}>
-                        {formatCurrency(cust.total_due)}
-                      </span>
+                      <div className="flex items-center justify-end gap-2">
+                        {cust.total_due > 0 && (
+                          <button 
+                            onClick={() => copyPaymentLink(cust)}
+                            className="p-1.5 text-ink-400 hover:text-sage-600 hover:bg-sage-50 rounded-lg transition-colors"
+                            title="Copy Payment Link"
+                          >
+                            <LinkIcon className="w-4 h-4" />
+                          </button>
+                        )}
+                        <span className={cust.total_due > 0 ? 'text-danger' : 'text-positive'}>
+                          {formatCurrency(cust.total_due)}
+                        </span>
+                      </div>
                     </td>
                     <td className="py-4 px-6 text-center">
                       <StatusBadge status={cust.total_due > 0 ? 'DUE' : 'CLEARED'} />
@@ -188,6 +240,53 @@ export const Customers: React.FC = () => {
           </div>
         )}
       </Card>
+
+      {/* Record Payment Modal */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 bg-ink-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md p-6 animate-scale-up">
+            <h3 className="text-xl font-semibold text-ink-800 mb-4">Record Customer Payment</h3>
+            <form onSubmit={handleRecordPayment} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-ink-700 mb-1">Select Customer</label>
+                <select 
+                  className="w-full px-4 py-2 bg-cream-50 border border-cream-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20"
+                  value={selectedCustomerId}
+                  onChange={(e) => setSelectedCustomerId(e.target.value)}
+                  required
+                >
+                  <option value="">-- Choose Customer --</option>
+                  {customers.filter(c => c.total_due > 0).map(c => (
+                    <option key={c.customer_id} value={c.customer_id}>
+                      {c.display_name} (Due: {formatCurrency(c.total_due)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-ink-700 mb-1">Amount Received (₹)</label>
+                <input 
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  required
+                  placeholder="e.g. 500"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                  className="w-full px-4 py-2 bg-cream-50 border border-cream-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-cream-100">
+                <Button variant="outline" type="button" onClick={() => setShowPaymentModal(false)}>Cancel</Button>
+                <Button variant="primary" type="submit" disabled={recordingPayment || !selectedCustomerId || !paymentAmount}>
+                  {recordingPayment ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Confirm Payment
+                </Button>
+              </div>
+            </form>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };

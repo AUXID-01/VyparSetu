@@ -2,20 +2,29 @@ import React, { useState } from 'react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { insightService } from '../services/insightService';
-import { Search, Sparkles, TrendingUp, AlertCircle, ArrowRight } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { Search, Sparkles, TrendingUp, AlertCircle, ArrowRight, Clock } from 'lucide-react';
 
 export const Insights: React.FC = () => {
+  const { auth } = useAuth();
   const [query, setQuery] = useState('');
   const [state, setState] = useState<'IDLE' | 'THINKING' | 'ANSWERED'>('IDLE');
-  const [answer, setAnswer] = useState<{ text: string, source: string } | null>(null);
+  const [answer, setAnswer] = useState<{ text: string, source: string, latency: number } | null>(null);
 
-  const handleAsk = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim()) return;
+  const handleAsk = async (e?: React.FormEvent, directQuery?: string) => {
+    if (e) e.preventDefault();
+    const q = directQuery || query;
+    if (!q.trim() || !auth.merchantId) return;
     
+    setQuery(q);
     setState('THINKING');
-    const res = await insightService.ask(query);
-    setAnswer({ text: res.answer, source: res.source });
+    try {
+      const res = await insightService.ask(auth.merchantId, q);
+      setAnswer({ text: res.answer, source: res.source, latency: res.generated_in_ms });
+    } catch (err) {
+      console.error(err);
+      setAnswer({ text: "Sorry, I couldn't analyze that right now.", source: "ERROR", latency: 0 });
+    }
     setState('ANSWERED');
   };
 
@@ -83,9 +92,14 @@ export const Insights: React.FC = () => {
 
         {state === 'ANSWERED' && answer && (
           <div className="mt-6 p-6 rounded-2xl bg-white border border-sage-200 shadow-soft animate-slide-up relative">
-            <div className="absolute top-4 right-4 flex items-center gap-1.5 px-2 py-1 bg-cream-50 rounded-md text-xs font-medium text-ink-400">
-               <Sparkles className="w-3 h-3" />
-               Generated from {answer.source === 'CACHE' ? 'cache' : 'full ledger analysis'}
+            <div className="absolute top-4 right-4 flex items-center gap-3">
+              <div className="flex items-center gap-1.5 px-2 py-1 bg-cream-50 rounded-md text-xs font-medium text-ink-400">
+                 <Clock className="w-3 h-3" />
+                 {answer.latency} ms
+              </div>
+              <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-bold ${answer.source === 'CACHE' ? 'bg-positive/10 text-positive' : answer.source === 'LIVE' ? 'bg-blue-100 text-blue-600' : 'bg-danger/10 text-danger'}`}>
+                 {answer.source === 'CACHE' ? 'CACHE' : answer.source === 'LIVE' ? 'LIVE' : 'ERROR'}
+              </div>
             </div>
             <h3 className="text-lg font-semibold text-ink-800 mb-3 flex items-center gap-2">
                <Sparkles className="w-5 h-5 text-sage-500" />
@@ -102,7 +116,11 @@ export const Insights: React.FC = () => {
       <h3 className="text-lg font-semibold text-ink-800 pt-4">Recent Discoveries</h3>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {predefinedInsights.map((insight, i) => (
-          <Card key={i} className="hover:-translate-y-1 transition-transform cursor-pointer group">
+          <Card 
+            key={i} 
+            className="hover:-translate-y-1 transition-transform cursor-pointer group"
+            onClick={() => handleAsk(undefined, insight.title)}
+          >
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${insight.color}`}>
               <insight.icon className="w-5 h-5" />
             </div>

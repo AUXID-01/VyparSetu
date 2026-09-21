@@ -8,6 +8,16 @@ If you are a beginner or new to this project, you are in the right place!
 
 **Paytm VyaparSetu v2** is a next-generation merchant operations platform. It is designed to help merchants (shop owners, businesses) manage their ledgers, automate workflows, and get intelligent insights into their business—all through a lightning-fast and easy-to-use interface.
 
+### 🚨 The Problem: Life of a "Kirana Wala" (Shop Owner)
+
+To understand why we built VyaparSetu, imagine the daily struggles of an Indian local grocery store owner (a *Kirana wala*):
+- 📝 **The "Udhaar" (Credit) Mess:** They manage customer credit in physical notebooks (Bahi Khata). Writing down every transaction during peak rush hours is slow, notebooks get lost or damaged, and handwriting issues lead to disputes.
+- 📦 **Manual Bill Entry:** When vendors deliver goods, they hand over physical paper bills (Challans). The shop owner has to manually type hundreds of items into their system to update inventory and pricing—a massive daily time sink.
+- 📉 **Hidden Price Hikes:** Because they process so many items manually, they often miss when a vendor secretly increases the wholesale rate of an item. This eats directly into their profit margins.
+- ⏳ **End-of-Day Exhaustion:** After standing at the counter for 12+ hours, they still have to manually message customers for pending payments and figure out which vendors to pay the next day.
+
+VyaparSetu was built to solve exactly these problems by introducing AI automation into their daily workflow, without slowing them down.
+
 ### 🤔 What does it do? (Key Features)
 
 - 🎙️ **Voice-Powered Ledger:** Log credits and update customer balances simply by speaking. VyaparSetu instantly processes voice input (in Hindi/Hinglish) into structured ledger entries.

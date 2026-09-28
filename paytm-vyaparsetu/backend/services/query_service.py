@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from db.models import Merchant
 from db.repositories import insight_cache_repo
 from memory import graph_client
+from memory.dataset_manager import get_dataset_for_merchant
 from core.logging import get_logger
 from core.errors import AppException, ErrorCode
 
@@ -30,16 +31,8 @@ async def answer_grounded_question(db: Session, merchant_id: str, question: str)
     logger.info(f"🌐 [Query Service] Cache MISS. Routing to Live Cloud for: '{question[:30]}...'")
     start_time = time.time()
     
-    # 3. Fetch dataset name
-    merchant = db.query(Merchant).filter(Merchant.merchant_id == merchant_id).first()
-    if not merchant:
-        raise AppException(
-            code=ErrorCode.MERCHANT_NOT_FOUND,
-            message="Merchant not found",
-            status_code=404
-        )
-        
-    dataset_name = merchant.cognee_dataset
+    # 3. Fetch dataset name (using fallback if missing from DB for test environments)
+    dataset_name = get_dataset_for_merchant(db, merchant_id)
     
     # 4. Live Query
     try:

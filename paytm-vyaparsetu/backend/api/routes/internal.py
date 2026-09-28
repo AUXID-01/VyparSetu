@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, BackgroundTasks
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -121,10 +121,23 @@ def outbox_callback(
     logger.info(f"📤 [{req_id}] [JSON Payload] POST /internal/outbox/callback egress: {result_data}")
     return success_envelope(result_data)
 
-@router.post("/memory/sync")
+async def process_sync_payload(dataset_name: str, event_type: str, payload: dict):
+    if event_type == "CREDIT_ADDED":
+        await memory.remember_transaction(dataset_name, payload)
+    elif event_type == "INVOICE_CREATED":
+        await memory.remember_invoice(dataset_name, payload)
+    elif event_type == "CUSTOMER_PAYMENT_SETTLED":
+        await memory.remember_payment(dataset_name, payload)
+    else:
+        logger.warning(f"Unhandled event_type: {event_type}")
+        
+    await memory.cognify_dataset(dataset_name)
+
+@router.post("/memory/sync", status_code=202)
 async def memory_sync(
     request: Request,
     payload: MemorySyncRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
     req_id = getattr(request.state, "request_id", "N/A")
@@ -132,20 +145,35 @@ async def memory_sync(
     
     dataset_name = memory.get_dataset_for_merchant(db, payload.merchant_id)
     
-    if payload.event_type == "CREDIT_ADDED":
-        await memory.remember_transaction(dataset_name, payload.payload)
-    elif payload.event_type == "INVOICE_CREATED":
-        await memory.remember_invoice(dataset_name, payload.payload)
-    elif payload.event_type == "CUSTOMER_PAYMENT_SETTLED":
-        await memory.remember_payment(dataset_name, payload.payload)
-    else:
-        logger.warning(f"Unhandled event_type: {payload.event_type}")
-        
-    await memory.cognify_dataset(dataset_name)
+    background_tasks.add_task(
+        process_sync_payload,
+        dataset_name,
+        payload.event_type,
+        payload.payload
+    )
     
-    result_data = {"event_id": payload.event_id, "status": "COGNIFIED"}
+    result_data = {"event_id": payload.event_id, "status": "ACCEPTED_FOR_COGNIFICATION"}
     logger.info(f"📤 [{req_id}] [JSON Payload] POST /internal/memory/sync egress: {result_data}")
     return success_envelope(result_data)
+
+@router.post("/memory/test-document", status_code=202)
+async def memory_test_document(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    dataset_name = "merchant_mer_gupta01"
+    
+    async def process_test_doc():
+        raw_text = "VyaparSetu test document. We recently onboarded Amul Dairy as a distributor."
+        from memory import graph_client
+        import cognee
+        await graph_client._ensure_connected()
+        await cognee.add(raw_text, dataset_name=dataset_name)
+        await cognee.cognify(datasets=[dataset_name])
+        
+    background_tasks.add_task(process_test_doc)
+    return success_envelope({"status": "TEST_DOCUMENT_ACCEPTED", "dataset": dataset_name})
 
 @router.post("/notifications/payment-link")
 def dispatch_payment_link(

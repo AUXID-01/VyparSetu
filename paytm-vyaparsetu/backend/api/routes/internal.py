@@ -7,7 +7,6 @@ from api.deps import get_db, verify_internal_token
 from core.errors import success_envelope, AppException, ErrorCode
 from core.logging import get_logger
 import db.repositories.outbox_repo as outbox_repo
-import memory
 from services import payment_service
 
 logger = get_logger("api.routes.internal")
@@ -121,18 +120,6 @@ def outbox_callback(
     logger.info(f"📤 [{req_id}] [JSON Payload] POST /internal/outbox/callback egress: {result_data}")
     return success_envelope(result_data)
 
-async def process_sync_payload(dataset_name: str, event_type: str, payload: dict):
-    if event_type == "CREDIT_ADDED":
-        await memory.remember_transaction(dataset_name, payload)
-    elif event_type == "INVOICE_CREATED":
-        await memory.remember_invoice(dataset_name, payload)
-    elif event_type == "CUSTOMER_PAYMENT_SETTLED":
-        await memory.remember_payment(dataset_name, payload)
-    else:
-        logger.warning(f"Unhandled event_type: {event_type}")
-        
-    await memory.cognify_dataset(dataset_name)
-
 @router.post("/memory/sync", status_code=202)
 async def memory_sync(
     request: Request,
@@ -143,37 +130,10 @@ async def memory_sync(
     req_id = getattr(request.state, "request_id", "N/A")
     logger.info(f"📥 [{req_id}] [JSON Payload] POST /internal/memory/sync ingress: {payload.model_dump()}")
     
-    dataset_name = memory.get_dataset_for_merchant(db, payload.merchant_id)
-    
-    background_tasks.add_task(
-        process_sync_payload,
-        dataset_name,
-        payload.event_type,
-        payload.payload
-    )
-    
+    # We no longer sync to cognee. Simply acknowledge the event.
     result_data = {"event_id": payload.event_id, "status": "ACCEPTED_FOR_COGNIFICATION"}
     logger.info(f"📤 [{req_id}] [JSON Payload] POST /internal/memory/sync egress: {result_data}")
     return success_envelope(result_data)
-
-@router.post("/memory/test-document", status_code=202)
-async def memory_test_document(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
-):
-    dataset_name = "merchant_mer_gupta01"
-    
-    async def process_test_doc():
-        raw_text = "VyaparSetu test document. We recently onboarded Amul Dairy as a distributor."
-        from memory import graph_client
-        import cognee
-        await graph_client._ensure_connected()
-        await cognee.add(raw_text, dataset_name=dataset_name)
-        await cognee.cognify(datasets=[dataset_name])
-        
-    background_tasks.add_task(process_test_doc)
-    return success_envelope({"status": "TEST_DOCUMENT_ACCEPTED", "dataset": dataset_name})
 
 @router.post("/notifications/payment-link")
 def dispatch_payment_link(
@@ -292,7 +252,6 @@ def provision_merchant_dataset(
     db: Session = Depends(get_db)
 ):
     from db.models import Merchant
-    from memory.dataset_manager import get_dataset_for_merchant
     
     req_id = getattr(request.state, "request_id", "N/A")
     logger.info(f"📥 [{req_id}] [JSON Payload] POST /internal/merchants/provision-dataset ingress: {payload.model_dump()}")
@@ -305,7 +264,7 @@ def provision_merchant_dataset(
             status_code=404
         )
         
-    dataset_name = get_dataset_for_merchant(db, payload.merchant_id)
+    dataset_name = merchant.cognee_dataset or f"merchant_{payload.merchant_id}"
     
     welcome_message = f"नमस्ते {merchant.owner_name}! Paytm VyaparSetu में आपका स्वागत है। {merchant.shop_name} के लिए आपका स्मार्ट खाता और AI बहीखाता तैयार है।"
     

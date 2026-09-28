@@ -1,18 +1,15 @@
 import hashlib
 import time
-import asyncio
 from sqlalchemy.orm import Session
-from db.models import Merchant
+from sqlalchemy import func
+from db.models import LedgerTransaction, Customer, InvoiceLineItem, Invoice, Distributor
 from db.repositories import insight_cache_repo
-from memory import graph_client
-from memory.dataset_manager import get_dataset_for_merchant
 from core.logging import get_logger
-from core.errors import AppException, ErrorCode
 
 logger = get_logger("services.query_service")
 
 async def answer_grounded_question(db: Session, merchant_id: str, question: str) -> dict:
-    """Answers a question using Cache first, falling back to live Cognee Cloud."""
+    """Answers a question using Cache first, falling back to native PostgreSQL."""
     
     # 1. Deterministic Cache Key
     question_hash = hashlib.sha256(question.strip().lower().encode()).hexdigest()[:12]
@@ -28,35 +25,60 @@ async def answer_grounded_question(db: Session, merchant_id: str, question: str)
             "generated_in_ms": 0
         }
         
-    logger.info(f"🌐 [Query Service] Cache MISS. Routing to Live Cloud for: '{question[:30]}...'")
+    logger.info(f"🌐 [Query Service] Cache MISS. Routing to Native PostgreSQL for: '{question[:30]}...'")
     start_time = time.time()
     
-    # 3. Fetch dataset name (using fallback if missing from DB for test environments)
-    dataset_name = get_dataset_for_merchant(db, merchant_id)
+    answer_text = ""
+    q_lower = question.lower()
     
-    # 4. Live Query
-    try:
-        # We need to await search_graph since it's an async function wrapper around cognee SDK
-        answer = await graph_client.search_graph(dataset_name=dataset_name, query=question)
-    except Exception as e:
-        logger.error(f"❌ [Query Service] Live query failed: {str(e)}")
-        raise AppException(
-            code="CLOUD_QUERY_FAILED",
-            message="Failed to query knowledge graph",
-            status_code=500
-        )
+    # 3. Native Database Routing Logic based on basic intent mapping
+    if any(keyword in q_lower for keyword in ["balance", "ledger", "credit", "udhaar", "due"]):
+        # Query ledger balances
+        result = db.query(
+            Customer.display_name,
+            func.sum(
+                func.case(
+                    (LedgerTransaction.txn_type == 'CREDIT_ADDED', LedgerTransaction.amount),
+                    (LedgerTransaction.txn_type == 'CREDIT_PAID', -LedgerTransaction.amount),
+                    else_=0
+                )
+            ).label('balance')
+        ).join(
+            LedgerTransaction, Customer.customer_id == LedgerTransaction.customer_id
+        ).filter(
+            Customer.merchant_id == merchant_id
+        ).group_by(Customer.display_name).all()
+        
+        if result:
+            answer_text = "Customer Balances:\n" + "\n".join([f"- {r.display_name}: ₹{r.balance:.2f}" for r in result if r.balance and r.balance > 0])
+        else:
+            answer_text = "No outstanding balances found."
+            
+    elif any(keyword in q_lower for keyword in ["rate", "invoice", "price", "sku", "cost"]):
+        # Query latest rates
+        result = db.query(
+            InvoiceLineItem.sku,
+            InvoiceLineItem.unit_price,
+            Distributor.name
+        ).join(
+            Invoice, Invoice.invoice_id == InvoiceLineItem.invoice_id
+        ).join(
+            Distributor, Distributor.distributor_id == Invoice.distributor_id
+        ).filter(
+            Invoice.merchant_id == merchant_id
+        ).order_by(Invoice.created_at.desc()).limit(10).all()
+        
+        if result:
+            answer_text = "Recent Item Rates:\n" + "\n".join([f"- {r.sku} (from {r.name}): ₹{r.unit_price:.2f}" for r in result])
+        else:
+            answer_text = "No recent invoices or item rates found."
+    else:
+        answer_text = "Sorry, I could not map your question to the existing database records. Please ask about customer balances or item rates."
         
     elapsed_ms = int((time.time() - start_time) * 1000)
-    logger.info(f"✅ [Query Service] Live query completed in {elapsed_ms}ms")
-    
-    # Format answer if it's a list
-    if isinstance(answer, list):
-        # Convert list of nodes/results to a string block or assume cognee returns formatted string
-        answer_text = "\n".join([str(item) for item in answer])
-    else:
-        answer_text = str(answer)
+    logger.info(f"✅ [Query Service] Native query completed in {elapsed_ms}ms")
         
-    # 5. Persist to cache
+    # 4. Persist to cache
     result_dict = {"answer": answer_text}
     insight_cache_repo.save_insight(
         db=db,

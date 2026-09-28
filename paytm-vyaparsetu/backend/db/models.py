@@ -24,7 +24,7 @@ class Merchant(Base):
     shop_name = Column(Text, nullable=False)
     owner_name = Column(Text, nullable=False)
     phone = Column(Text, nullable=False, unique=True)
-    cognee_dataset = Column(Text, nullable=False, unique=True)
+    cognee_dataset = Column(Text, nullable=True, unique=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     # Relationships

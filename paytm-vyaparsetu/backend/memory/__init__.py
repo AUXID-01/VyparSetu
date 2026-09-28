@@ -1,20 +1,15 @@
 """
 memory/__init__.py
 Façade exposing the strictly parameterized memory module methods.
-No synchronous API endpoints should import these unless they're async workers.
+(Cognee integrations have been removed)
 """
 
-from .writers import remember_transaction, remember_invoice, remember_payment
-from .queries import query_rate_trend, query_grounded_qa
-from .dataset_manager import get_dataset_for_merchant
-from .graph_client import cognify_dataset
+from .ontology import Customer, Transaction, Distributor, Invoice, LineItem
 
 __all__ = [
-    "remember_transaction",
-    "remember_invoice",
-    "remember_payment",
-    "query_rate_trend",
-    "query_grounded_qa",
-    "get_dataset_for_merchant",
-    "cognify_dataset",
+    "Customer",
+    "Transaction",
+    "Distributor",
+    "Invoice",
+    "LineItem",
 ]

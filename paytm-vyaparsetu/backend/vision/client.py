@@ -26,7 +26,7 @@ def _call_groq_vision(b64_image: str, ocr_text: str, request_id: str) -> Tuple[D
     prompt = VISION_CHALLAN_EXTRACTION_PROMPT + f"\n\n--- OCR GROUNDING TEXT ---\n{ocr_text}"
     
     payload = {
-        "model": "groq/compound",
+        "model":"qwen/qwen3.8-27b",
         "messages": [
             {
                 "role": "user",

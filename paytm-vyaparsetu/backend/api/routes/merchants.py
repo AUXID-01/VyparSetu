@@ -52,7 +52,6 @@ def create_merchant(req: MerchantCreateReq, background_tasks: BackgroundTasks, d
         "shop_name": merchant.shop_name,
         "owner_name": merchant.owner_name,
         "phone": merchant.phone,
-        "cognee_dataset": merchant.cognee_dataset,
         "session_token": f"mock_tok_{merchant.merchant_id}"
     })
 
@@ -69,8 +68,7 @@ def get_merchant(merchant_id: str, db: Session = Depends(get_db)):
         "merchant_id": merchant.merchant_id,
         "shop_name": merchant.shop_name,
         "owner_name": merchant.owner_name,
-        "phone": merchant.phone,
-        "cognee_dataset": merchant.cognee_dataset
+        "phone": merchant.phone
     })
 
 @router.post("/login")
@@ -89,6 +87,5 @@ def login_merchant(req: MerchantLoginReq, db: Session = Depends(get_db)):
         "shop_name": merchant.shop_name,
         "owner_name": merchant.owner_name,
         "phone": merchant.phone,
-        "cognee_dataset": merchant.cognee_dataset,
         "session_token": f"mock_tok_{merchant.merchant_id}"
     })

@@ -8,8 +8,7 @@ def create_merchant(db: Session, shop_name: str, owner_name: str, phone: str) ->
         merchant_id=merchant_id,
         shop_name=shop_name,
         owner_name=owner_name,
-        phone=phone,
-        cognee_dataset=f"merchant_{merchant_id}"
+        phone=phone
     )
     db.add(merchant)
     db.commit()

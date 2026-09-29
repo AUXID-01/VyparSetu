@@ -38,11 +38,6 @@ class SystemErrorAlertRequest(BaseModel):
 class ProvisionDatasetRequest(BaseModel):
     merchant_id: str
 
-class MemorySyncRequest(BaseModel):
-    event_id: str
-    merchant_id: str
-    event_type: str
-    payload: dict
 
 class OutboxCallbackPayload(BaseModel):
     event_id: str
@@ -120,20 +115,6 @@ def outbox_callback(
     logger.info(f"📤 [{req_id}] [JSON Payload] POST /internal/outbox/callback egress: {result_data}")
     return success_envelope(result_data)
 
-@router.post("/memory/sync", status_code=202)
-async def memory_sync(
-    request: Request,
-    payload: MemorySyncRequest,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
-):
-    req_id = getattr(request.state, "request_id", "N/A")
-    logger.info(f"📥 [{req_id}] [JSON Payload] POST /internal/memory/sync ingress: {payload.model_dump()}")
-    
-    # We no longer sync to cognee. Simply acknowledge the event.
-    result_data = {"event_id": payload.event_id, "status": "ACCEPTED_FOR_COGNIFICATION"}
-    logger.info(f"📤 [{req_id}] [JSON Payload] POST /internal/memory/sync egress: {result_data}")
-    return success_envelope(result_data)
 
 @router.post("/notifications/payment-link")
 def dispatch_payment_link(
@@ -264,13 +245,10 @@ def provision_merchant_dataset(
             status_code=404
         )
         
-    dataset_name = merchant.cognee_dataset or f"merchant_{payload.merchant_id}"
-    
     welcome_message = f"नमस्ते {merchant.owner_name}! Paytm VyaparSetu में आपका स्वागत है। {merchant.shop_name} के लिए आपका स्मार्ट खाता और AI बहीखाता तैयार है।"
     
     result_data = {
         "merchant_id": payload.merchant_id,
-        "dataset_name": dataset_name,
         "owner_name": merchant.owner_name,
         "shop_name": merchant.shop_name,
         "phone": merchant.phone,
@@ -301,8 +279,7 @@ def log_system_error(
             merchant_id="SYSTEM",
             shop_name="VyaparSetu System",
             owner_name="System",
-            phone="0000000000",
-            cognee_dataset="system_metrics"
+            phone="0000000000"
         )
         db.add(system_merchant)
         db.flush()

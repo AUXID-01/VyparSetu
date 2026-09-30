@@ -3,13 +3,14 @@ from db.models import Customer
 from core.ids import generate_customer_id
 
 def get_or_create(db: Session, merchant_id: str, name: str = None, display_name: str = None) -> Customer:
-    target_name = (display_name or name or "").strip()
-    canonical_key = target_name.lower()
+    raw_name = (display_name or name or "").strip()
+    clean_canonical = raw_name.lower()
+    clean_display = raw_name.capitalize()
     
     # Find existing customer
     existing = db.query(Customer).filter(
         Customer.merchant_id == merchant_id,
-        Customer.canonical_key == canonical_key
+        Customer.canonical_key == clean_canonical
     ).first()
     
     if existing:
@@ -19,8 +20,8 @@ def get_or_create(db: Session, merchant_id: str, name: str = None, display_name:
     new_customer = Customer(
         customer_id=generate_customer_id(),
         merchant_id=merchant_id,
-        display_name=target_name,
-        canonical_key=canonical_key
+        display_name=clean_display,
+        canonical_key=clean_canonical
     )
     db.add(new_customer)
     db.commit()

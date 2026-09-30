@@ -40,6 +40,7 @@ async def ask_grounded_question(
     return {
         "success": True,
         "answer": result.get("answer"),
+        "answer_audio_b64": result.get("answer_audio_b64", ""),
         "data": result.get("data"),
         "tool_used": result.get("tool_used"),
         "source": result.get("source"),

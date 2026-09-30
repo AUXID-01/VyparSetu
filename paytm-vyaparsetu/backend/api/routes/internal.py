@@ -313,5 +313,12 @@ def log_system_error(
     return success_envelope(result_data)
 
 
+@router.api_route("/memory/sync", methods=["GET", "POST"])
+def dummy_memory_sync():
+    """Dummy endpoint to gracefully handle legacy n8n outbox poller requests."""
+    return {"status": "ok", "message": "Memory sync decommissioned (pure PostgreSQL mode active)"}
+
+
+
 
 

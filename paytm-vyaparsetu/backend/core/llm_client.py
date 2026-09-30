@@ -1,5 +1,6 @@
 import json
 import time
+import re
 from datetime import date
 from groq import AsyncGroq
 from config import settings
@@ -16,9 +17,18 @@ async def run_grounded_qa_agent(db: Session, merchant_id: str, question: str) ->
     start_time = time.time()
     logger.info(f"🤖 [QA Agent] Received question: '{question}'")
     
-    # Step 1: System Prompt Setup
+    # Step 1: Single-Hop System Prompt Setup with Transliteration Rules
     system_prompt = f"""You are Paytm VyaparSetu's Digital Munimji. Route the merchant's inquiry to the correct tool. Do NOT guess figures.
-Current Date: {date.today().isoformat()}"""
+Current Date: {date.today().isoformat()}
+
+CRITICAL INDIC ENTITY NORMALIZATION RULES:
+1. The merchant may speak or ask in any Indian language or script (Hindi, Hinglish, Bengali, Marathi, Tamil, Telugu, Gujarati, English, etc.).
+2. You must directly understand their inquiry and map it to the correct tool.
+3. Normalize all extracted entity arguments strictly into standard lowercase English Latin characters:
+   - customer_name: TRANSLITERATE proper nouns and personal names phonetically into lowercase English Latin characters (e.g. 'आयुष' -> 'ayush', 'कमल' -> 'kamal', 'सुरेश' -> 'suresh', 'नंदिनी' -> 'nandini'). NEVER translate names into English dictionary words (e.g. 'kamal', NEVER 'lotus').
+   - distributor_name: TRANSLITERATE to lowercase English Latin characters (e.g. 'अमुल' -> 'amul').
+   - item_name: TRANSLATE generic goods to standard lowercase English words (e.g. 'तेल' -> 'oil', 'दूध' -> 'milk', 'दही' -> 'curd').
+4. Date ranges: Select the appropriate DateRange enum (TODAY, YESTERDAY, THIS_WEEK, LAST_WEEK, LAST_7_DAYS, THIS_MONTH, LAST_MONTH)."""
 
     messages = [
         {"role": "system", "content": system_prompt},
@@ -26,7 +36,7 @@ Current Date: {date.today().isoformat()}"""
     ]
 
     try:
-        # Step 2: Initial Groq Tool-Calling Request
+        # Step 2: Single-Hop Groq Tool-Calling Request
         response = await client.chat.completions.create(
             model="openai/gpt-oss-120b",
             messages=messages,
@@ -79,11 +89,23 @@ Current Date: {date.today().isoformat()}"""
             all_data[tool_name] = result["data"]
             tool_names.append(tool_name)
 
+        # Step 3: Localized Spoken Synthesis for Voice Audio
+        synthesis_prompt = f"""You are VyaparSetu. Narrate the verified database results in clear, polite spoken style for audio playback.
+
+CRITICAL VOICE & LOCALIZATION RULES:
+1. MATCH THE USER'S QUERY LANGUAGE:
+   - If the merchant asked in Hindi or Hinglish, answer in polite, natural spoken Hindi/Hinglish.
+   - If the merchant asked in Bengali, Marathi, Tamil, or English, answer in that respective language.
+2. STRICT NUMERIC ACCURACY: ONLY use the exact figures present in the Database Results. Do NOT invent, assume, or estimate any numbers.
+3. PHONETIC CURRENCY: NEVER use the currency symbol '₹' or abbreviations like 'Rs' or 'INR'. ALWAYS spell currency phonetically in spoken text (e.g. '350 rupaye', 'teen sau pachas rupaye', or '15 hazar rupaye') so the text-to-speech voice sounds completely natural.
+4. NO MARKDOWN: NEVER use asterisks (**), headers (#), bullet points, or tables. Output plain, conversational sentences designed for spoken voice.
+5. Keep the response to 1 or 2 clear, helpful sentences.
+
+Database Results:
+{json.dumps(all_data)}"""
+
         synthesis_messages = [
-            {
-                "role": "system", 
-                "content": f"You are VyaparSetu. Narrate the verified database results in clear, polite Hindi/Hinglish for voice playback. You MUST ONLY use the exact figures present in the tool data. Do NOT invent, assume, or estimate any numbers. IMPORTANT: You must write out all currency phonetically in Devanagari or Hinglish (e.g., '15 hazar rupaye', '320 rupaye') instead of using the ₹ symbol, so the TTS engine pronounces it correctly.\n\nDatabase Results:\n{json.dumps(all_data)}"
-            },
+            {"role": "system", "content": synthesis_prompt},
             {"role": "user", "content": question}
         ]
 
@@ -92,8 +114,12 @@ Current Date: {date.today().isoformat()}"""
             messages=synthesis_messages
         )
         
+        raw_answer = synthesis_response.choices[0].message.content or ""
+        # Clean any accidental Markdown or currency symbols
+        clean_answer = raw_answer.replace("₹", "rupaye").replace("**", "").replace("*", "").strip()
+
         return {
-            "answer": synthesis_response.choices[0].message.content,
+            "answer": clean_answer,
             "data": all_data,
             "tool_used": ",".join(tool_names)
         }

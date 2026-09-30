@@ -41,3 +41,7 @@ app.include_router(payments.router, prefix="/api/v1/payments", tags=["payments"]
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.api_route("/internal/memory/sync", methods=["GET", "POST"])
+def root_dummy_memory_sync():
+    return {"status": "ok", "message": "Memory sync decommissioned"}

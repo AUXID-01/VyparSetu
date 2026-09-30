@@ -35,7 +35,16 @@ async def ask_grounded_question(
     )
     
     logger.info(f"📤 [{req_id}] [JSON Payload] POST /api/v1/query/ask egress: {result}")
-    return success_envelope(result)
+    
+    # Explicitly return the format requested for Grounded Q&A
+    return {
+        "success": True,
+        "answer": result.get("answer"),
+        "data": result.get("data"),
+        "tool_used": result.get("tool_used"),
+        "source": result.get("source"),
+        "generated_in_ms": result.get("generated_in_ms")
+    }
 
 @router.get("/customer-due/{customer_id}")
 def get_customer_due(customer_id: str, db: Session = Depends(get_db)):

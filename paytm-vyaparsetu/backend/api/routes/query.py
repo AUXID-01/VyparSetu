@@ -34,7 +34,17 @@ async def ask_grounded_question(
         question=payload.question
     )
     
-    logger.info(f"📤 [{req_id}] [JSON Payload] POST /api/v1/query/ask egress: {result}")
+    audio_b64 = result.get("answer_audio_b64") or ""
+    log_summary = {
+        "success": True,
+        "answer": result.get("answer"),
+        "tool_used": result.get("tool_used"),
+        "source": result.get("source"),
+        "generated_in_ms": result.get("generated_in_ms"),
+        "has_audio": bool(audio_b64),
+        "audio_bytes": len(audio_b64)
+    }
+    logger.info(f"📤 [{req_id}] [JSON Payload] POST /api/v1/query/ask egress: {log_summary}")
     
     # Explicitly return the format requested for Grounded Q&A
     return {

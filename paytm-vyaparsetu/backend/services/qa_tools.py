@@ -250,9 +250,10 @@ def tool_get_customer_due(db: Session, merchant_id: str, args: CustomerDueQuery)
     if not customer:
         return {"status": "not_found", "message": f"Customer '{args.customer_name}' not found."}
 
+    from sqlalchemy import case
     balance = db.query(
         func.sum(
-            func.case(
+            case(
                 (LedgerTransaction.txn_type == 'CREDIT_ADDED', LedgerTransaction.amount),
                 (LedgerTransaction.txn_type == 'CREDIT_PAID', -LedgerTransaction.amount),
                 else_=0

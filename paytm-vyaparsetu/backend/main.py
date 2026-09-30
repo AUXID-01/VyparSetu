@@ -3,8 +3,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.routes import merchants, voice, query, challan, internal, alerts, ledger, payments
 from api.deps import request_id_middleware
 from core.errors import app_exception_handler, AppException
+from contextlib import asynccontextmanager
+from sqlalchemy import text
+from db.session import engine
 
-app = FastAPI(title="Paytm VyaparSetu")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    with engine.begin() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm;"))
+    yield
+
+app = FastAPI(title="Paytm VyaparSetu", lifespan=lifespan)
 
 app.middleware("http")(request_id_middleware)
 

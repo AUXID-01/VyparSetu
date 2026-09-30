@@ -36,71 +36,67 @@ Current Date: {date.today().isoformat()}"""
         
         message = response.choices[0].message
         
-        # Step 3: Tool Dispatch & Interception
         if not message.tool_calls:
             return {
-                "answer": "Main kewal aapke dukaan ke ledger, supplier invoices, aur settlement balance ke sawalon ka jawab de sakta hoon.",
+                "answer": "Main kewal aapke ledger, bills, aur balance ke sawal bata sakta hoon.",
                 "data": None,
                 "tool_used": None
             }
             
-        tool_call = message.tool_calls[0]
-        tool_name = tool_call.function.name
-        arguments = json.loads(tool_call.function.arguments)
-        
-        logger.info(f"🔧 [QA Agent] Dispatching to tool: {tool_name} with args: {arguments}")
-        
-        result = execute_tool_call(db=db, merchant_id=merchant_id, tool_name=tool_name, arguments=arguments)
-        
-        # Step 4: Result Handling & Grounded Synthesis
-        if result.get("status") == "ambiguous":
-            candidates = result.get("candidates", [])
-            return {
-                "answer": "Mujhe ek se zyada records mile. Aap kiski baat kar rahe hain: " + ", ".join(candidates) + "?",
-                "data": None,
-                "tool_used": tool_name
-            }
+        all_data = {}
+        tool_names = []
+        for tool_call in message.tool_calls:
+            tool_name = tool_call.function.name
+            arguments = json.loads(tool_call.function.arguments)
             
-        elif result.get("status") == "error":
-            return {
-                "status": "error",
-                "answer": "Maaf kijiye, abhi yeh record check karne mein takleef ho rahi hai.",
-                "data": None,
-                "tool_used": tool_name
-            }
+            logger.info(f"🔧 [QA Agent] Dispatching to tool: {tool_name} with args: {arguments}")
             
-        elif not result.get("data") or result.get("status") == "not_found":
-            return {
-                "answer": "Aapke records mein iski koi jaankari nahi mili.",
-                "data": None,
-                "tool_used": tool_name
-            }
+            result = execute_tool_call(db=db, merchant_id=merchant_id, tool_name=tool_name, arguments=arguments)
             
-        else:
-            # Case D: Success
-            synthesis_messages = [
-                {"role": "system", "content": "You are VyaparSetu. Narrate the verified database results in clear, polite Hindi/Hinglish for voice playback. You MUST ONLY use the exact figures present in the tool data. Do NOT invent, assume, or estimate any numbers."},
-                {"role": "user", "content": question},
-                # For Groq / OpenAI passing the assistant message with tool calls
-                message,
-                {
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "name": tool_name,
-                    "content": json.dumps(result["data"])
+            if result.get("status") == "ambiguous":
+                candidates = result.get("candidates", [])
+                return {
+                    "answer": "Mujhe ek se zyada records mile. Aap kiski baat kar rahe hain: " + ", ".join(candidates) + "?",
+                    "data": None,
+                    "tool_used": tool_name
                 }
-            ]
+                
+            elif result.get("status") == "error":
+                return {
+                    "status": "error",
+                    "answer": "Maaf kijiye, abhi yeh record check karne mein takleef ho rahi hai.",
+                    "data": None,
+                    "tool_used": tool_name
+                }
+                
+            elif not result.get("data") or result.get("status") == "not_found":
+                return {
+                    "answer": "Aapke records mein iski koi jaankari nahi mili.",
+                    "data": None,
+                    "tool_used": tool_name
+                }
             
-            synthesis_response = await client.chat.completions.create(
-                model="openai/gpt-oss-120b",
-                messages=synthesis_messages
-            )
-            
-            return {
-                "answer": synthesis_response.choices[0].message.content,
-                "data": result["data"],
-                "tool_used": tool_name
-            }
+            all_data[tool_name] = result["data"]
+            tool_names.append(tool_name)
+
+        synthesis_messages = [
+            {
+                "role": "system", 
+                "content": f"You are VyaparSetu. Narrate the verified database results in clear, polite Hindi/Hinglish for voice playback. You MUST ONLY use the exact figures present in the tool data. Do NOT invent, assume, or estimate any numbers. IMPORTANT: You must write out all currency phonetically in Devanagari or Hinglish (e.g., '15 hazar rupaye', '320 rupaye') instead of using the ₹ symbol, so the TTS engine pronounces it correctly.\n\nDatabase Results:\n{json.dumps(all_data)}"
+            },
+            {"role": "user", "content": question}
+        ]
+
+        synthesis_response = await client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=synthesis_messages
+        )
+        
+        return {
+            "answer": synthesis_response.choices[0].message.content,
+            "data": all_data,
+            "tool_used": ",".join(tool_names)
+        }
 
     except Exception as e:
         logger.error(f"❌ [QA Agent] Error: {e}", exc_info=True)

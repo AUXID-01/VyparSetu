@@ -11,6 +11,7 @@ class ErrorCode(StrEnum):
     MERCHANT_NOT_FOUND = "MERCHANT_NOT_FOUND"
     INVOICE_NOT_FOUND = "INVOICE_NOT_FOUND"
     LOW_CONFIDENCE_EXTRACTION = "LOW_CONFIDENCE_EXTRACTION"
+    EXTRACTION_FAILED = "EXTRACTION_FAILED"
     DUPLICATE_MERCHANT_PHONE = "DUPLICATE_MERCHANT_PHONE"
     INTERNAL_TOKEN_INVALID = "INTERNAL_TOKEN_INVALID"
     SARVAM_API_ERROR = "SARVAM_API_ERROR"
@@ -21,6 +22,14 @@ class AppException(Exception):
         self.message = message
         self.status_code = status_code
         super().__init__(message)
+
+class ExtractionFailedError(AppException):
+    def __init__(self, message: str = "Voice extraction failed."):
+        super().__init__(
+            code=ErrorCode.EXTRACTION_FAILED,
+            message=message,
+            status_code=400
+        )
 
 def success_envelope(data: Any = None) -> Dict[str, Any]:
     """

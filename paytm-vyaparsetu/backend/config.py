@@ -1,4 +1,6 @@
+import sys
 from pathlib import Path
+from pydantic import field_validator, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -8,14 +10,17 @@ if not ENV_FILE.exists():
 
 class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://vyapar_user:vyapar_pass@localhost:5432/vyaparsetu_db"
-    SARVAM_API_KEY: str = ""
-    GOOGLE_VISION_API_KEY: str = ""
-    GEMINI_API_KEY: str = ""
-    GROQ_API_KEY: str = ""
-    OPENAI_API_KEY: str = ""
-    # No cognee integrations needed
     
-    INTERNAL_TOKEN: str = "vyapar_internal_secret_token_123"
+    # Always required keys (no default, fails fast if missing)
+    SARVAM_API_KEY: str
+    GROQ_API_KEY: str
+    GOOGLE_VISION_API_KEY: str
+    INTERNAL_TOKEN: str
+    
+    # Optional / Fallback keys (can be empty)
+    GEMINI_API_KEY: str = ""
+    OPENAI_API_KEY: str = ""
+    
     PORT: int = 8000
     ENVIRONMENT: str = "development"
     
@@ -23,6 +28,12 @@ class Settings(BaseSettings):
     N8N_VENDOR_PAYOUT_WEBHOOK_URL: str = "http://localhost:5678/webhook/vendor-payout"
     N8N_ALERT_DISPATCH_WEBHOOK_URL: str = "http://localhost:5678/webhook/alert-dispatch"
     N8N_ONBOARDING_WEBHOOK_URL: str = "http://localhost:5678/webhook/merchant-onboarding"
+
+    @field_validator("SARVAM_API_KEY", "GROQ_API_KEY", "GOOGLE_VISION_API_KEY", "INTERNAL_TOKEN", mode="before")
+    def check_not_empty(cls, v, info):
+        if not v or not str(v).strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return str(v).strip()
 
     def get_vision_api_key(self) -> str:
         return self.GOOGLE_VISION_API_KEY or self.GEMINI_API_KEY
@@ -33,5 +44,15 @@ class Settings(BaseSettings):
         extra="ignore"
     )
 
-
-settings = Settings()
+try:
+    settings = Settings()
+except ValidationError as e:
+    missing_keys = []
+    for err in e.errors():
+        loc = err.get("loc", [])
+        if loc:
+            missing_keys.append(str(loc[0]))
+    
+    msg = f"Startup Error: The following required environment variables are missing or empty: {', '.join(set(missing_keys))}"
+    print(f"\n❌ {msg}\n")
+    sys.exit(1)

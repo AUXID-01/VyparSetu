@@ -17,23 +17,6 @@ def get_groq_client() -> Groq:
         _groq_client = Groq(api_key=settings.GROQ_API_KEY)
     return _groq_client
 
-def _regex_fallback_extract(transcript: str) -> Dict[str, Any]:
-    """Lightweight fallback if LLM is unavailable."""
-    text_lower = transcript.strip().lower()
-    amounts = re.findall(r'\b\d+(?:\.\d+)?\b', text_lower)
-    amount = float(amounts[0]) if amounts else 0.0
-    
-    # Simple word tokenization excluding common words
-    tokens = [w for w in re.findall(r'[a-zA-Z]+', text_lower) if w not in {"ka", "ko", "ke", "ki", "mein", "likho", "diya", "rupaye", "rs", "inr"}]
-    customer = tokens[0] if tokens else ""
-    
-    return {
-        "customer_name": customer,
-        "amount": amount,
-        "items": [],
-        "confidence": 0.5 if (customer and amount > 0) else 0.2,
-        "detected_language": "hi-IN"
-    }
 
 def extract_entities(transcript: str, request_id: str = "N/A") -> Dict[str, Any]:
     """
@@ -85,7 +68,6 @@ def extract_entities(transcript: str, request_id: str = "N/A") -> Dict[str, Any]
         return result
 
     except Exception as exc:
-        logger.warning(f"[{request_id}] Groq extraction failed ({exc}). Falling back to regex parser.")
-        fallback = _regex_fallback_extract(raw_text)
-        logger.info(f"[{request_id}] fallback_extraction_complete: {fallback}")
-        return fallback
+        logger.error(f"[{request_id}] Groq extraction failed ({exc}). Throwing extraction failed error.")
+        from core.errors import ExtractionFailedError
+        raise ExtractionFailedError(message="Could not clearly understand the entry. Please repeat it.")

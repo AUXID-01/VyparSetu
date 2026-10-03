@@ -24,7 +24,7 @@ def create_transaction(
         extraction_confidence=extraction_confidence
     )
     db.add(txn)
-    db.commit()
+    db.flush()
     db.refresh(txn)
     return txn
 

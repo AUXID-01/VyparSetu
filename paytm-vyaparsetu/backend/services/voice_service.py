@@ -23,38 +23,45 @@ def process_log_credit(
 ) -> dict:
     logger.info(f"[{request_id}] process_log_credit start: merchant_id='{merchant_id}', customer_name='{customer_name}', amount={amount}, confidence={confidence}")
     
-    # 1. Resolve/create customer
-    customer = customers_repo.get_or_create(db, merchant_id, customer_name)
-    logger.info(f"[{request_id}] Identity resolution: customer_id='{customer.customer_id}', display_name='{customer.display_name}', canonical_key='{customer.canonical_key}'")
-    
-    # 2. Insert ledger transaction
-    txn = ledger_repo.create_transaction(
-        db=db,
-        merchant_id=merchant_id,
-        customer_id=customer.customer_id,
-        amount=amount,
-        txn_type=TxnType.CREDIT_ADDED.value,
-        source=LedgerSource.VOICE.value,
-        items=items,
-        extraction_confidence=confidence
-    )
-    logger.info(f"[{request_id}] Ledger insert: txn_id='{txn.txn_id}', amount={txn.amount}")
-    
-    # 3. Insert outbox_events row
-    event = outbox_repo.create_event(
-        db=db,
-        merchant_id=merchant_id,
-        event_type=OutboxEventType.CREDIT_ADDED.value,
-        payload={
-            "txn_id": txn.txn_id,
-            "customer_id": customer.customer_id,
-            "merchant_id": merchant_id,
-            "amount": amount
-        }
-    )
-    logger.info(f"[{request_id}] Outbox insert: event_id='{event.event_id}', status=PENDING (awaiting poller)")
-    
-    current_balance = ledger_repo.calculate_customer_due(db, merchant_id, customer.customer_id)
+    try:
+        # 1. Resolve/create customer
+        customer = customers_repo.get_or_create(db, merchant_id, customer_name)
+        logger.info(f"[{request_id}] Identity resolution: customer_id='{customer.customer_id}', display_name='{customer.display_name}', canonical_key='{customer.canonical_key}'")
+        
+        # 2. Insert ledger transaction
+        txn = ledger_repo.create_transaction(
+            db=db,
+            merchant_id=merchant_id,
+            customer_id=customer.customer_id,
+            amount=amount,
+            txn_type=TxnType.CREDIT_ADDED.value,
+            source=LedgerSource.VOICE.value,
+            items=items,
+            extraction_confidence=confidence
+        )
+        logger.info(f"[{request_id}] Ledger insert: txn_id='{txn.txn_id}', amount={txn.amount}")
+        
+        # 3. Insert outbox_events row
+        event = outbox_repo.create_event(
+            db=db,
+            merchant_id=merchant_id,
+            event_type=OutboxEventType.CREDIT_ADDED.value,
+            payload={
+                "txn_id": txn.txn_id,
+                "customer_id": customer.customer_id,
+                "merchant_id": merchant_id,
+                "amount": amount
+            }
+        )
+        logger.info(f"[{request_id}] Outbox insert: event_id='{event.event_id}', status=PENDING (awaiting poller)")
+        
+        current_balance = ledger_repo.calculate_customer_due(db, merchant_id, customer.customer_id)
+        
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(f"[{request_id}] DB transaction failed during process_log_credit: {e}")
+        raise
     
     # Confirmation text
     confirmation_text = f"{customer.display_name} ji ke khate mein {amount} rupaye jod diye gaye hain."
@@ -123,36 +130,43 @@ def process_voice_credit_audio(
 
     # Step E (Database Ledger Invariants)
     logger.info(f"[{request_id}] Stage 5 (Database Writes): resolving customer and inserting transaction...")
-    customer = customers_repo.resolve_or_create(db, merchant_id=merchant_id, display_name=customer_name)
-    logger.info(f"[{request_id}] Resolved customer: customer_id='{customer.customer_id}', canonical_key='{customer.canonical_key}'")
-
-    txn = ledger_repo.create_transaction(
-        db=db,
-        merchant_id=merchant_id,
-        customer_id=customer.customer_id,
-        amount=amount,
-        txn_type=TxnType.CREDIT_ADDED.value,
-        source=LedgerSource.VOICE.value,
-        items=extracted.get("items", []),
-        extraction_confidence=confidence
-    )
-    logger.info(f"[{request_id}] Inserted ledger transaction: txn_id='{txn.txn_id}', amount={txn.amount}")
-
-    outbox_evt = outbox_repo.create_outbox_event(
-        db=db,
-        merchant_id=merchant_id,
-        event_type=OutboxEventType.CREDIT_ADDED.value,
-        payload={
-            "txn_id": txn.txn_id,
-            "customer_id": customer.customer_id,
-            "merchant_id": merchant_id,
-            "amount": float(txn.amount)
-        }
-    )
-    logger.info(f"[{request_id}] Inserted outbox event: event_id='{outbox_evt.event_id}', status=PENDING (awaiting poller)")
-
-    new_balance = ledger_repo.calculate_customer_due(db, merchant_id=merchant_id, customer_id=customer.customer_id)
-    logger.info(f"[{request_id}] Calculated updated balance: customer_id='{customer.customer_id}', new_balance={new_balance}")
+    try:
+        customer = customers_repo.resolve_or_create(db, merchant_id=merchant_id, display_name=customer_name)
+        logger.info(f"[{request_id}] Resolved customer: customer_id='{customer.customer_id}', canonical_key='{customer.canonical_key}'")
+    
+        txn = ledger_repo.create_transaction(
+            db=db,
+            merchant_id=merchant_id,
+            customer_id=customer.customer_id,
+            amount=amount,
+            txn_type=TxnType.CREDIT_ADDED.value,
+            source=LedgerSource.VOICE.value,
+            items=extracted.get("items", []),
+            extraction_confidence=confidence
+        )
+        logger.info(f"[{request_id}] Inserted ledger transaction: txn_id='{txn.txn_id}', amount={txn.amount}")
+    
+        outbox_evt = outbox_repo.create_outbox_event(
+            db=db,
+            merchant_id=merchant_id,
+            event_type=OutboxEventType.CREDIT_ADDED.value,
+            payload={
+                "txn_id": txn.txn_id,
+                "customer_id": customer.customer_id,
+                "merchant_id": merchant_id,
+                "amount": float(txn.amount)
+            }
+        )
+        logger.info(f"[{request_id}] Inserted outbox event: event_id='{outbox_evt.event_id}', status=PENDING (awaiting poller)")
+    
+        new_balance = ledger_repo.calculate_customer_due(db, merchant_id=merchant_id, customer_id=customer.customer_id)
+        logger.info(f"[{request_id}] Calculated updated balance: customer_id='{customer.customer_id}', new_balance={new_balance}")
+        
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(f"[{request_id}] DB transaction failed during process_voice_credit_audio: {e}")
+        raise
 
     # Step F (Spoken Feedback Generation)
     hindi_words = sarvam.number_to_hindi_words(amount)

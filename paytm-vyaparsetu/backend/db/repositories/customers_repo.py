@@ -24,7 +24,7 @@ def get_or_create(db: Session, merchant_id: str, name: str = None, display_name:
         canonical_key=clean_canonical
     )
     db.add(new_customer)
-    db.commit()
+    db.flush()
     db.refresh(new_customer)
     return new_customer
 

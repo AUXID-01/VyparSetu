@@ -22,7 +22,7 @@ def create_event(
         status="PENDING"
     )
     db.add(event)
-    db.commit()
+    db.flush()
     db.refresh(event)
     return event
 
@@ -50,7 +50,7 @@ def mark_event_synced(db: Session, event_id: str) -> Optional[OutboxEvent]:
         return None
     event.status = "SYNCED"
     event.synced_at = func.now()
-    db.commit()
+    db.flush()
     db.refresh(event)
     logger.info(f"💾 [DB Write] Marked event {event_id} as SYNCED")
     return event
@@ -65,6 +65,6 @@ def mark_event_failed(db: Session, event_id: str) -> Optional[OutboxEvent]:
         logger.info(f"💾 [DB Write] Marked event {event_id} as FAILED (attempts >= 5)")
     else:
         logger.info(f"💾 [DB Write] Incremented attempt count for event {event_id} to {event.attempt_count}")
-    db.commit()
+    db.flush()
     db.refresh(event)
     return event

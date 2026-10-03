@@ -111,6 +111,7 @@ def outbox_callback(
             status_code=404
         )
         
+    db.commit()
     result_data = {"event_id": updated.event_id, "status": updated.status}
     logger.info(f"📤 [{req_id}] [JSON Payload] POST /internal/outbox/callback egress: {result_data}")
     return success_envelope(result_data)

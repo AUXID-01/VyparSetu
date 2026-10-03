@@ -63,8 +63,18 @@ def synthesize_speech(text: str, target_language_code: str = "hi-IN", speaker: s
     url = f"{SARVAM_BASE_URL}/text-to-speech"
     headers = get_sarvam_headers()
     
+    # Sarvam bulbul:v3 enforces max 500 characters per input
+    input_text = text.strip()
+    if len(input_text) > 480:
+        trimmed = input_text[:480]
+        last_punct = max(trimmed.rfind('.'), trimmed.rfind('\n'), trimmed.rfind('।'))
+        if last_punct > 100:
+            input_text = trimmed[:last_punct + 1].strip()
+        else:
+            input_text = trimmed.strip()
+
     payload = {
-        "inputs": [text],
+        "inputs": [input_text],
         "target_language_code": target_language_code,
         "speaker": speaker,
         "model": "bulbul:v3",

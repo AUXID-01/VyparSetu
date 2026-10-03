@@ -75,7 +75,7 @@ class CustomerDueQuery(BaseModel):
 class CustomerTransactionsQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
     customer_name: str
-    date_range: DateRange = DateRange.LAST_7_DAYS
+    date_range: Optional[DateRange] = None
 
 class SkuPriceTrendQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -85,16 +85,20 @@ class SkuPriceTrendQuery(BaseModel):
 class SupplierPayoutQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
     distributor_name: str
-    date_range: DateRange = DateRange.LAST_WEEK
+    date_range: Optional[DateRange] = None
 
 class SupplierInvoiceQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
     distributor_name: str
-    date_range: DateRange = DateRange.LAST_WEEK
+    date_range: Optional[DateRange] = None
 
 class DailyBalanceQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
     target_date: Optional[date] = None
+
+class AllSuppliersPaymentOverviewQuery(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    status_filter: Optional[str] = Field(default=None, description="Optional filter: 'ALL', 'PAID', 'UNPAID'")
 
 # ---------------------------------------------------------
 # 2. Entity Resolvers
@@ -318,37 +322,54 @@ def tool_get_sku_price_trend(db: Session, merchant_id: str, args: SkuPriceTrendQ
     resolved_sku, is_ambiguous, matches = resolve_sku(db, merchant_id, args.item_name)
     if is_ambiguous:
         return {"status": "ambiguous", "message": f"Multiple items found matching '{args.item_name}'", "candidates": matches}
-    if not resolved_sku:
-        return {"status": "not_found", "message": f"No items found matching '{args.item_name}'"}
     
+    target_sku = resolved_sku or args.item_name.strip()
     cutoff_dt = datetime.now() - timedelta(days=args.days)
     
-    items = db.query(
-        InvoiceLineItem.sku,
-        InvoiceLineItem.unit_price,
-        Invoice.invoice_date,
-        Distributor.name
-    ).join(Invoice).join(
-        Distributor, Invoice.distributor_id == Distributor.distributor_id
-    ).filter(
-        Invoice.merchant_id == merchant_id,
-        InvoiceLineItem.sku == resolved_sku,
-        Invoice.invoice_date >= cutoff_dt.date()
-    ).order_by(Invoice.invoice_date.asc()).all()
+    base_query = (
+        db.query(
+            InvoiceLineItem.sku,
+            InvoiceLineItem.unit_price,
+            InvoiceLineItem.quantity,
+            InvoiceLineItem.unit,
+            Invoice.invoice_date,
+            Invoice.created_at,
+            Distributor.name.label("distributor_name")
+        )
+        .select_from(InvoiceLineItem)
+        .join(Invoice, InvoiceLineItem.invoice_id == Invoice.invoice_id)
+        .join(Distributor, Invoice.distributor_id == Distributor.distributor_id)
+        .filter(
+            Invoice.merchant_id == merchant_id,
+            (func.lower(InvoiceLineItem.sku) == target_sku.lower()) |
+            (InvoiceLineItem.sku.ilike(f"%{target_sku}%")) |
+            (InvoiceLineItem.raw_text.ilike(f"%{target_sku}%"))
+        )
+    )
     
+    # 1. Try with date cutoff
+    items = base_query.filter(Invoice.invoice_date >= cutoff_dt.date()).order_by(Invoice.invoice_date.asc(), Invoice.created_at.asc()).all()
+    
+    # 2. Fallback to all historical records if none found within days window
     if not items:
-        return {"status": "not_found", "message": f"No purchase history for '{args.item_name}' in the last {args.days} days."}
-    
+        items = base_query.order_by(Invoice.invoice_date.asc(), Invoice.created_at.asc()).all()
+        
+    if not items:
+        return {"status": "not_found", "message": f"No purchase history found for item '{args.item_name}'."}
+        
     history = []
     distributors = set()
     for i in items:
+        date_val = i.invoice_date.isoformat() if i.invoice_date else (i.created_at.date().isoformat() if i.created_at else "N/A")
         history.append({
-            "date": i.invoice_date.isoformat(),
+            "date": date_val,
             "price": float(i.unit_price),
-            "distributor": i.name,
-            "sku": i.sku
+            "distributor": i.distributor_name,
+            "sku": i.sku,
+            "quantity": float(i.quantity) if i.quantity is not None else 1.0,
+            "unit": i.unit or ""
         })
-        distributors.add(i.name)
+        distributors.add(i.distributor_name)
         
     oldest_price = float(items[0].unit_price)
     latest_price = float(items[-1].unit_price)
@@ -364,9 +385,12 @@ def tool_get_sku_price_trend(db: Session, merchant_id: str, args: SkuPriceTrendQ
         "status": "success",
         "data": {
             "item_searched": args.item_name,
-            "matched_skus": [resolved_sku],
+            "matched_skus": list({i.sku for i in items}),
             "oldest_price": oldest_price,
             "latest_price": latest_price,
+            "current_rate": latest_price,
+            "unit": items[-1].unit or "",
+            "distributor": items[-1].distributor_name,
             "absolute_delta": absolute_delta,
             "percentage_change": percentage_change,
             "history": history
@@ -380,25 +404,64 @@ def tool_get_supplier_payout_summary(db: Session, merchant_id: str, args: Suppli
     if not distributor:
         return {"status": "not_found", "message": f"Supplier '{args.distributor_name}' not found."}
         
-    start_dt, end_dt = normalize_date_range(args.date_range)
+    note = None
+    period_label = "ALL_TIME"
     
-    result = db.query(
-        func.sum(Invoice.total_amount).label("total_spend"),
-        func.count(Invoice.invoice_id).label("invoice_count")
-    ).filter(
+    if args.date_range:
+        start_dt, end_dt = normalize_date_range(args.date_range)
+        result = db.query(
+            func.sum(Invoice.total_amount).label("total_spend"),
+            func.count(Invoice.invoice_id).label("invoice_count")
+        ).filter(
+            Invoice.merchant_id == merchant_id,
+            Invoice.distributor_id == distributor.distributor_id,
+            Invoice.invoice_date >= start_dt.date(),
+            Invoice.invoice_date < end_dt.date()
+        ).first()
+        
+        invoice_count = result.invoice_count or 0
+        total_spend = float(result.total_spend or 0.0)
+        period_label = args.date_range.value
+        
+        # Fallback if no invoices in specified range
+        if invoice_count == 0:
+            all_invoices = db.query(Invoice).filter(
+                Invoice.merchant_id == merchant_id,
+                Invoice.distributor_id == distributor.distributor_id
+            ).all()
+            if all_invoices:
+                invoice_count = len(all_invoices)
+                total_spend = sum(float(i.total_amount) for i in all_invoices)
+                period_label = "ALL_TIME"
+                note = f"No invoices recorded in {args.date_range.value}; showing latest records."
+    else:
+        # Default: all-time totals
+        all_invoices = db.query(Invoice).filter(
+            Invoice.merchant_id == merchant_id,
+            Invoice.distributor_id == distributor.distributor_id
+        ).all()
+        invoice_count = len(all_invoices)
+        total_spend = sum(float(i.total_amount) for i in all_invoices)
+        
+    latest_inv = db.query(Invoice).filter(
         Invoice.merchant_id == merchant_id,
-        Invoice.distributor_id == distributor.distributor_id,
-        Invoice.invoice_date >= start_dt.date(),
-        Invoice.invoice_date < end_dt.date()
-    ).first()
+        Invoice.distributor_id == distributor.distributor_id
+    ).order_by(Invoice.created_at.desc(), Invoice.invoice_date.desc()).first()
     
     return {
         "status": "success",
         "data": {
             "distributor": distributor.name,
-            "total_spend": float(result.total_spend or 0.0),
-            "invoice_count": result.invoice_count or 0,
-            "period": args.date_range.value
+            "total_spend": float(total_spend),
+            "invoice_count": invoice_count,
+            "period": period_label,
+            "latest_invoice_id": latest_inv.invoice_id if latest_inv else None,
+            "latest_invoice_amount": float(latest_inv.total_amount) if latest_inv else 0.0,
+            "is_paid": latest_inv.is_paid if latest_inv else False,
+            "paid_at": latest_inv.paid_at.isoformat() if (latest_inv and latest_inv.paid_at) else None,
+            "payout_reference": latest_inv.payout_reference if latest_inv else None,
+            "challan_number": latest_inv.challan_number if latest_inv else None,
+            "note": note
         }
     }
 
@@ -409,17 +472,35 @@ def tool_get_supplier_invoice_details(db: Session, merchant_id: str, args: Suppl
     if not distributor:
         return {"status": "not_found", "message": f"Supplier '{args.distributor_name}' not found."}
         
-    start_dt, end_dt = normalize_date_range(args.date_range)
+    invoices = []
+    note = None
     
-    invoices = db.query(Invoice).filter(
-        Invoice.merchant_id == merchant_id,
-        Invoice.distributor_id == distributor.distributor_id,
-        Invoice.invoice_date >= start_dt.date(),
-        Invoice.invoice_date < end_dt.date()
-    ).order_by(Invoice.invoice_date.desc(), Invoice.created_at.desc()).limit(1).all()
-    
+    if args.date_range:
+        start_dt, end_dt = normalize_date_range(args.date_range)
+        invoices = db.query(Invoice).filter(
+            Invoice.merchant_id == merchant_id,
+            Invoice.distributor_id == distributor.distributor_id,
+            Invoice.invoice_date >= start_dt.date(),
+            Invoice.invoice_date < end_dt.date()
+        ).order_by(Invoice.invoice_date.desc(), Invoice.created_at.desc()).limit(1).all()
+        
+        # Fallback if none found in date range
+        if not invoices:
+            invoices = db.query(Invoice).filter(
+                Invoice.merchant_id == merchant_id,
+                Invoice.distributor_id == distributor.distributor_id
+            ).order_by(Invoice.created_at.desc(), Invoice.invoice_date.desc()).limit(1).all()
+            if invoices:
+                note = f"No invoices recorded in {args.date_range.value}; showing latest invoice on record."
+    else:
+        # Default: latest invoice on record ordered by created_at / invoice_date
+        invoices = db.query(Invoice).filter(
+            Invoice.merchant_id == merchant_id,
+            Invoice.distributor_id == distributor.distributor_id
+        ).order_by(Invoice.created_at.desc(), Invoice.invoice_date.desc()).limit(1).all()
+        
     if not invoices:
-        return {"status": "not_found", "message": f"No invoices found for {distributor.name} in {args.date_range.value}"}
+        return {"status": "not_found", "message": f"No invoices found for {distributor.name}."}
         
     latest = invoices[0]
     line_items = db.query(InvoiceLineItem).filter(
@@ -430,18 +511,26 @@ def tool_get_supplier_invoice_details(db: Session, merchant_id: str, args: Suppl
     for item in line_items:
         items_breakdown.append({
             "sku": item.sku,
-            "quantity": float(item.quantity),
-            "unit_price": float(item.unit_price),
-            "line_total": float(item.quantity * item.unit_price)
+            "quantity": float(item.quantity) if item.quantity is not None else 1.0,
+            "unit": item.unit or "",
+            "unit_price": float(item.unit_price) if item.unit_price is not None else 0.0,
+            "line_total": float((item.quantity or 1.0) * (item.unit_price or 0.0))
         })
         
     return {
         "status": "success",
         "data": {
             "distributor": distributor.name,
-            "invoice_date": latest.invoice_date.isoformat(),
+            "invoice_id": latest.invoice_id,
+            "challan_number": latest.challan_number,
+            "invoice_date": latest.invoice_date.isoformat() if latest.invoice_date else None,
+            "created_at": latest.created_at.isoformat() if latest.created_at else None,
             "total_amount": float(latest.total_amount),
-            "items": items_breakdown
+            "is_paid": bool(latest.is_paid),
+            "paid_at": latest.paid_at.isoformat() if latest.paid_at else None,
+            "payout_reference": latest.payout_reference,
+            "items": items_breakdown,
+            "note": note
         }
     }
 
@@ -472,6 +561,90 @@ def tool_get_daily_operational_balance(db: Session, merchant_id: str, args: Dail
             "upi_collection": float(rollup.upi_collection_total),
             "payout_total": float(rollup.payout_total),
             "net_balance": float(rollup.net_balance)
+        }
+    }
+
+def tool_get_all_suppliers_payment_overview(db: Session, merchant_id: str, args: AllSuppliersPaymentOverviewQuery) -> dict:
+    distributors = db.query(Distributor).filter(Distributor.merchant_id == merchant_id).all()
+    if not distributors:
+        return {
+            "status": "success",
+            "data": {
+                "message": "No registered distributors found.",
+                "total_distributors": 0,
+                "paid_suppliers": [],
+                "unpaid_suppliers": []
+            }
+        }
+        
+    suppliers_data = []
+    paid_suppliers = []
+    unpaid_suppliers = []
+    
+    total_spend_all = 0.0
+    total_paid_all = 0.0
+    total_unpaid_all = 0.0
+    
+    for d in distributors:
+        invoices = db.query(Invoice).filter(
+            Invoice.merchant_id == merchant_id,
+            Invoice.distributor_id == d.distributor_id
+        ).order_by(Invoice.created_at.desc(), Invoice.invoice_date.desc()).all()
+        
+        if not invoices:
+            continue
+            
+        latest_inv = invoices[0]
+        dist_total_spend = sum(float(i.total_amount) for i in invoices)
+        dist_paid_invoices = [i for i in invoices if i.is_paid]
+        dist_unpaid_invoices = [i for i in invoices if not i.is_paid]
+        
+        dist_paid_amt = sum(float(i.total_amount) for i in dist_paid_invoices)
+        dist_unpaid_amt = sum(float(i.total_amount) for i in dist_unpaid_invoices)
+        
+        total_spend_all += dist_total_spend
+        total_paid_all += dist_paid_amt
+        total_unpaid_all += dist_unpaid_amt
+        
+        item_info = {
+            "distributor": d.name,
+            "invoice_count": len(invoices),
+            "total_amount": dist_total_spend,
+            "paid_amount": dist_paid_amt,
+            "unpaid_amount": dist_unpaid_amt,
+            "latest_invoice_id": latest_inv.invoice_id,
+            "latest_invoice_date": latest_inv.invoice_date.isoformat() if latest_inv.invoice_date else None,
+            "latest_is_paid": bool(latest_inv.is_paid),
+            "latest_payout_reference": latest_inv.payout_reference,
+            "has_unpaid": dist_unpaid_amt > 0
+        }
+        suppliers_data.append(item_info)
+        
+        if dist_paid_amt > 0 or (latest_inv.is_paid and dist_total_spend == 0):
+            paid_suppliers.append({
+                "distributor": d.name,
+                "paid_amount": dist_paid_amt,
+                "latest_payout_reference": latest_inv.payout_reference
+            })
+            
+        if dist_unpaid_amt > 0:
+            unpaid_suppliers.append({
+                "distributor": d.name,
+                "pending_amount": dist_unpaid_amt,
+                "invoice_count": len(dist_unpaid_invoices),
+                "latest_invoice_id": latest_inv.invoice_id
+            })
+            
+    return {
+        "status": "success",
+        "data": {
+            "total_distributors": len(distributors),
+            "total_spend": total_spend_all,
+            "total_paid": total_paid_all,
+            "total_unpaid": total_unpaid_all,
+            "paid_suppliers": paid_suppliers,
+            "unpaid_suppliers": unpaid_suppliers,
+            "all_suppliers": suppliers_data
         }
     }
 
@@ -547,7 +720,7 @@ OPERATIONAL_TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "get_supplier_payout_summary",
-            "description": "USE WHEN: The user asks about total spending, payments, or payouts made to a specific supplier or distributor. DO NOT USE WHEN: Asking about specific items bought.",
+            "description": "USE WHEN: The user asks about total spending, payments, payouts, or settlement status for a specific supplier or distributor. DO NOT USE WHEN: Asking about specific items bought.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -558,7 +731,7 @@ OPERATIONAL_TOOLS_SCHEMA = [
                     "date_range": {
                         "type": "string",
                         "enum": ["TODAY", "YESTERDAY", "THIS_WEEK", "LAST_WEEK", "LAST_7_DAYS", "THIS_MONTH", "LAST_MONTH"],
-                        "description": "The time period to query."
+                        "description": "Optional time period to query. Omit if the user did not specify a timeframe or asks for all/recent bills."
                     }
                 },
                 "required": ["distributor_name"],
@@ -570,7 +743,7 @@ OPERATIONAL_TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "get_supplier_invoice_details",
-            "description": "USE WHEN: The user asks for details of the latest invoice or what was bought from a specific supplier. Returns the most recent matching supplier invoice within the requested date range, including its line items. DO NOT USE WHEN: Asking for total aggregate spend only.",
+            "description": "USE WHEN: The user asks for details of what items were bought, delivered, or listed on an invoice/challan from a specific supplier. Returns the matching or latest supplier invoice including line items and payment status. DO NOT USE WHEN: Asking for total aggregate spend only.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -581,7 +754,7 @@ OPERATIONAL_TOOLS_SCHEMA = [
                     "date_range": {
                         "type": "string",
                         "enum": ["TODAY", "YESTERDAY", "THIS_WEEK", "LAST_WEEK", "LAST_7_DAYS", "THIS_MONTH", "LAST_MONTH"],
-                        "description": "The time period to query."
+                        "description": "Optional time period to query. Omit if the user did not specify a timeframe or asks for the latest bill."
                     }
                 },
                 "required": ["distributor_name"],
@@ -600,6 +773,25 @@ OPERATIONAL_TOOLS_SCHEMA = [
                     "target_date": {
                         "type": "string",
                         "description": "The specific date in YYYY-MM-DD format."
+                    }
+                },
+                "required": [],
+                "additionalProperties": False
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_all_suppliers_payment_overview",
+            "description": "USE WHEN: The user asks an open-ended question about distributors, suppliers, or vendor payments in general without naming a specific supplier — for example, asking which distributor's bill is paid, whose payment is pending/unpaid, list of all suppliers, or total supplier dues. DO NOT USE WHEN: A specific supplier name is given (use get_supplier_payout_summary or get_supplier_invoice_details instead).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "status_filter": {
+                        "type": "string",
+                        "enum": ["ALL", "PAID", "UNPAID"],
+                        "description": "Optional filter: 'PAID' if asking which suppliers are paid, 'UNPAID' if asking who has pending bills, or 'ALL' for a complete overview."
                     }
                 },
                 "required": [],
@@ -638,6 +830,10 @@ def execute_tool_call(db: Session, merchant_id: str, tool_name: str, arguments: 
         elif tool_name == "get_daily_operational_balance":
             args = DailyBalanceQuery(**arguments)
             return tool_get_daily_operational_balance(db, merchant_id, args)
+            
+        elif tool_name == "get_all_suppliers_payment_overview":
+            args = AllSuppliersPaymentOverviewQuery(**arguments)
+            return tool_get_all_suppliers_payment_overview(db, merchant_id, args)
             
         else:
             return {"status": "error", "message": f"Unknown tool: {tool_name}"}

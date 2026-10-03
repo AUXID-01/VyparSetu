@@ -25,6 +25,7 @@ RULES & CAPABILITIES:
 1. COMPOUND & MULTI-PART INQUIRIES:
    - The merchant may ask single questions, compound questions with multiple items/people, or general questions with no names at all (e.g. daily sales, collections, inventory price trends).
    - If the inquiry asks about multiple customers, multiple suppliers, or combines shop totals with customer balances, call tools iteratively until ALL parts of the question are verified.
+   - For open-ended questions about suppliers, distributors, or vendor payments without a specific name (e.g., 'Kaunse distributor ka bill paid hai aur kiska payment baaki hai?', 'Kiska payment pending hai?', 'Distributor bills ka kya status hai?'), call 'get_all_suppliers_payment_overview'. Do NOT ask the user for distributor names when they ask an open-ended question.
 2. GENERAL INQUIRIES:
    - If the merchant asks general questions or greetings (e.g., 'Hello', 'Aap kya kya hisab dekh sakte ho?'), answer politely and directly without calling tools.
 3. INDIC ENTITY NORMALIZATION:
@@ -35,7 +36,8 @@ RULES & CAPABILITIES:
      * item_name: TRANSLATE generic goods to standard lowercase English words (e.g. 'तेल' -> 'oil', 'दूध' -> 'milk', 'दही' -> 'curd').
 4. SPOKEN RESPONSE RULES:
    - Provide the final answer in polite spoken conversational style matching the user's language (Hindi, Hinglish, Bengali, Marathi, English, etc.).
-   - ALWAYS write out all currency phonetically (e.g., '350 rupaye', 'teen sau pachas rupaye', '15 hazar rupaye').
+   - When answering bill, invoice, or supplier payment queries, state the exact bill amount, payment status (paid or unpaid), and if available, include the payout reference or UTR number.
+   - ALWAYS write out all currency phonetically (e.g., '350 rupaye', '1055 rupaye', '15 hazar rupaye').
    - NEVER use the currency symbol '₹' or abbreviations like 'Rs' or 'INR'.
    - NEVER use Markdown formatting like asterisks (**), headers (#), bullet points, or tables. Output plain, spoken sentences."""
 
@@ -70,6 +72,7 @@ RULES & CAPABILITIES:
                     .replace("**", "")
                     .replace("*", "")
                     .replace("#", "")
+                    .replace("- ", "")
                     .strip()
                 )
                 logger.info(f"✅ [QA Agent] Completed in {step + 1} steps. Tools used: {tool_names_used}")

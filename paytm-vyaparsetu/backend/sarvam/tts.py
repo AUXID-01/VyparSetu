@@ -90,7 +90,7 @@ def synthesize_speech(text: str, target_language_code: str = "hi-IN", speaker: s
             logger.info(f"[{request_id}] Sarvam TTS synthesis completed: bytes={len(audio_bytes)}")
             return audio_bytes
         except httpx.HTTPError as exc:
-            logger.warning(f"[{request_id}] Sarvam TTS API call failed or unavailable ({exc}). Using silent WAV fallback.")
-            silent_wav_b64 = "UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA="
-            return base64.b64decode(silent_wav_b64)
+            raw_response = exc.response.text if hasattr(exc, "response") and exc.response else "No response body"
+            logger.error(f"[{request_id}] Sarvam TTS API call failed: {exc} | Raw Response: {raw_response}")
+            raise
 

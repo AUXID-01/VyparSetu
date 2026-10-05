@@ -176,10 +176,12 @@ def process_voice_credit_audio(
     try:
         tts_audio_bytes = sarvam.synthesize_speech(text=confirmation_text, request_id=request_id)
         confirmation_audio_b64 = base64.b64encode(tts_audio_bytes).decode("utf-8")
+        confirmation_audio_status = "AVAILABLE"
         logger.info(f"[{request_id}] Stage 6 Result: TTS audio generated ({len(tts_audio_bytes)} bytes, b64_len={len(confirmation_audio_b64)})")
     except Exception as exc:
-        logger.warning(f"[{request_id}] Stage 6 Exception: TTS synthesis failed ({exc}), setting b64 to empty string")
-        confirmation_audio_b64 = ""
+        logger.error(f"[{request_id}] Stage 6 Exception: TTS synthesis failed ({exc}), setting audio to null")
+        confirmation_audio_b64 = None
+        confirmation_audio_status = "UNAVAILABLE"
 
     # Step G: Return response matching contract
     logger.info(f"[{request_id}] Voice pipeline execution completed successfully for merchant='{merchant_id}'")
@@ -195,6 +197,7 @@ def process_voice_credit_audio(
             "confidence": confidence
         },
         "confirmation_audio_text": confirmation_text,
-        "confirmation_audio_b64": confirmation_audio_b64
+        "confirmation_audio_b64": confirmation_audio_b64,
+        "confirmation_audio_status": confirmation_audio_status
     }
 

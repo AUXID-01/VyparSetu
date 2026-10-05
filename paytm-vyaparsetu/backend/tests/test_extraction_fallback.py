@@ -30,11 +30,10 @@ def test_extraction_failure_raises_error_and_no_writes():
         # Simulate processing the audio
         audio_bytes = b"fake_audio_content_that_is_at_least_1000_bytes_long" * 100
         
-        # Act & Assert A: ExtractionFailedError is raised
-        with pytest.raises(ExtractionFailedError) as exc_info:
-            process_voice_credit_audio(db, merchant_id, audio_bytes, request_id="req_test_123")
+        # Act & Assert A: outcome is FAILED_RETRY instead of an exception
+        result = process_voice_credit_audio(db, merchant_id, audio_bytes, request_id="req_test_123")
             
-        assert exc_info.value.code == "EXTRACTION_FAILED"
+        assert result["outcome"] == "FAILED_RETRY"
         
         # Assert B & C: No rows written to ledger_transactions or customers
         # (Since db is a mock, we verify no db.add or db.commit was called for this operation)

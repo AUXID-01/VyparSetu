@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str
     GOOGLE_VISION_API_KEY: str
     INTERNAL_TOKEN: str
+    VOICE_CONFIRMATION_SECRET: str
     
     # Optional / Fallback keys (can be empty)
     GEMINI_API_KEY: str = ""
@@ -29,7 +30,7 @@ class Settings(BaseSettings):
     N8N_ALERT_DISPATCH_WEBHOOK_URL: str = "http://localhost:5678/webhook/alert-dispatch"
     N8N_ONBOARDING_WEBHOOK_URL: str = "http://localhost:5678/webhook/merchant-onboarding"
 
-    @field_validator("SARVAM_API_KEY", "GROQ_API_KEY", "GOOGLE_VISION_API_KEY", "INTERNAL_TOKEN", mode="before")
+    @field_validator("SARVAM_API_KEY", "GROQ_API_KEY", "GOOGLE_VISION_API_KEY", "INTERNAL_TOKEN", "VOICE_CONFIRMATION_SECRET", mode="before")
     def check_not_empty(cls, v, info):
         if not v or not str(v).strip():
             raise ValueError(f"{info.field_name} cannot be empty")

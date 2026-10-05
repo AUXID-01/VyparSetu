@@ -62,6 +62,26 @@ async def transcribe(request: Request, audio: UploadFile = File(...)):
         "language_detected": res["language_code"]
     })
 
+class ConfirmCreditReq(BaseModel):
+    merchant_id: str
+    confirmation_token: str
+    confirmed: bool
+
+@router.post("/confirm-credit")
+def confirm_credit(req: ConfirmCreditReq, request: Request, db: Session = Depends(get_db)):
+    req_id = getattr(request.state, "request_id", "N/A")
+    logger.info(f"[{req_id}] POST /voice/confirm-credit ingress: merchant_id='{req.merchant_id}', confirmed={req.confirmed}")
+    
+    result = voice_service.confirm_credit(
+        db=db,
+        merchant_id=req.merchant_id,
+        token=req.confirmation_token,
+        confirmed=req.confirmed,
+        request_id=req_id
+    )
+    
+    return success_envelope(result)
+
 @router.post("/log-credit-from-audio")
 async def log_credit_from_audio(
     request: Request,
@@ -85,6 +105,6 @@ async def log_credit_from_audio(
         request_id=req_id
     )
     
-    logger.info(f"[{req_id}] POST /voice/log-credit-from-audio egress: txn_id='{result.get('txn_id')}', new_balance={result.get('new_balance')}")
+    logger.info(f"[{req_id}] POST /voice/log-credit-from-audio egress: outcome='{result.get('outcome')}'")
     return success_envelope(result)
 

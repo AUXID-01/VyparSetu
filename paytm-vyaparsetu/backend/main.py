@@ -7,11 +7,26 @@ from contextlib import asynccontextmanager
 from sqlalchemy import text
 from db.session import engine
 
+import asyncio
+from workers.outbox_worker import run_outbox_loop
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     with engine.begin() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm;"))
+        
+    # Start native outbox worker
+    stop_event = asyncio.Event()
+    worker_task = asyncio.create_task(run_outbox_loop(stop_event, interval_seconds=15))
+    
     yield
+    
+    # Graceful shutdown of outbox worker
+    stop_event.set()
+    try:
+        await asyncio.wait_for(worker_task, timeout=5.0)
+    except (asyncio.TimeoutError, asyncio.CancelledError):
+        pass
 
 app = FastAPI(title="Paytm VyaparSetu", lifespan=lifespan)
 

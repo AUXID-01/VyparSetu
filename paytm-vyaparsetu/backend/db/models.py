@@ -24,6 +24,7 @@ class Merchant(Base):
     shop_name = Column(Text, nullable=False)
     owner_name = Column(Text, nullable=False)
     phone = Column(Text, nullable=False, unique=True)
+    preferred_language = Column(Text, nullable=False, default="hi", server_default="hi")
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     # Relationships

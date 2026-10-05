@@ -5,21 +5,44 @@ from core.logging import get_logger
 
 logger = get_logger("sarvam.stt")
 
-def transcribe_audio(audio_bytes: bytes, filename: str = "audio.wav", request_id: str = "N/A") -> dict:
+LANGUAGE_MAPPING = {
+    "hi": "hi-IN",
+    "mr": "mr-IN",
+    "bn": "bn-IN",
+    "gu": "gu-IN",
+    "ta": "ta-IN",
+    "te": "te-IN",
+    "kn": "kn-IN",
+    "ml": "ml-IN",
+    "pa": "pa-IN",
+    "od": "od-IN",
+    "en": "en-IN"
+}
+
+def transcribe_audio(audio_bytes: bytes, filename: str = "audio.wav", request_id: str = "N/A", language: str = "hi") -> dict:
     """
     Transcribes audio bytes into text using Sarvam AI Speech-to-Text API (saaras:v3 codemix).
     """
-    logger.info(f"[{request_id}] STT input received: filename='{filename}', size={len(audio_bytes)} bytes")
+    logger.info(f"[{request_id}] STT input received: filename='{filename}', size={len(audio_bytes)} bytes, lang='{language}'")
     
     url = f"{SARVAM_BASE_URL}/speech-to-text"
     headers = get_sarvam_headers()
     
     mime_type = "audio/webm" if filename.endswith(".webm") else "audio/wav"
     files = {"file": (filename, audio_bytes, mime_type)}
+    
+    mapped_lang = LANGUAGE_MAPPING.get(language)
+    if not mapped_lang:
+        raise AppException(
+            code="UNSUPPORTED_LANGUAGE",
+            message=f"Unsupported STT language code: '{language}'",
+            status_code=400
+        )
+        
     data = {
         "model": "saaras:v3",
         "mode": "codemix",
-        "language_code": "hi-IN",
+        "language_code": mapped_lang,
     }
     
     with httpx.Client(timeout=30.0) as client:

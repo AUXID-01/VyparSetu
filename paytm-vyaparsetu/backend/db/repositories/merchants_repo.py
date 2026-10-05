@@ -2,13 +2,14 @@ from sqlalchemy.orm import Session
 from db.models import Merchant
 from core.ids import generate_merchant_id
 
-def create_merchant(db: Session, shop_name: str, owner_name: str, phone: str) -> Merchant:
+def create_merchant(db: Session, shop_name: str, owner_name: str, phone: str, preferred_language: str = "hi") -> Merchant:
     merchant_id = generate_merchant_id()
     merchant = Merchant(
         merchant_id=merchant_id,
         shop_name=shop_name,
         owner_name=owner_name,
-        phone=phone
+        phone=phone,
+        preferred_language=preferred_language
     )
     db.add(merchant)
     db.commit()

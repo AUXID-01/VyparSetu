@@ -66,12 +66,13 @@ async def transcribe(request: Request, audio: UploadFile = File(...)):
 async def log_credit_from_audio(
     request: Request,
     merchant_id: str = Form(...),
+    language_override: str = Form(None),
     audio: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
     req_id = getattr(request.state, "request_id", "N/A")
     filename = audio.filename or "audio.wav"
-    logger.info(f"[{req_id}] POST /voice/log-credit-from-audio ingress: merchant_id='{merchant_id}', filename='{filename}'")
+    logger.info(f"[{req_id}] POST /voice/log-credit-from-audio ingress: merchant_id='{merchant_id}', lang_override='{language_override}', filename='{filename}'")
     
     audio_bytes = await audio.read()
     
@@ -79,6 +80,7 @@ async def log_credit_from_audio(
         db=db,
         merchant_id=merchant_id,
         audio_bytes=audio_bytes,
+        language_override=language_override,
         filename=filename,
         request_id=req_id
     )

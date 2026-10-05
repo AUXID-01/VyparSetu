@@ -16,6 +16,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [password, setPassword] = useState('');
   const [shopName, setShopName] = useState('');
   const [ownerName, setOwnerName] = useState('');
+  const [preferredLanguage, setPreferredLanguage] = useState('hi');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
@@ -39,7 +40,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
         });
         navigate('/dashboard');
       } else {
-        const res = await apiClient.post('/merchants', { shop_name: shopName, owner_name: ownerName, phone, password });
+        const res = await apiClient.post('/merchants', { 
+          shop_name: shopName, 
+          owner_name: ownerName, 
+          phone, 
+          password,
+          preferred_language: preferredLanguage
+        });
         login({
           merchantId: res.data.merchant_id,
           sessionToken: res.data.session_token,
@@ -85,6 +92,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                   <div>
                     <label className="block text-sm font-medium text-ink-600 mb-1">Owner Name</label>
                     <input type="text" required value={ownerName} onChange={e => setOwnerName(e.target.value)} className="w-full px-3 py-2 border border-cream-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sage-500" placeholder="Ramesh Gupta" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-ink-600 mb-1">Preferred Voice Language</label>
+                    <select value={preferredLanguage} onChange={e => setPreferredLanguage(e.target.value)} className="w-full px-3 py-2 border border-cream-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sage-500 bg-white">
+                      <option value="hi">Hindi (hi)</option>
+                      <option value="mr">Marathi (mr)</option>
+                      <option value="bn">Bengali (bn)</option>
+                      <option value="gu">Gujarati (gu)</option>
+                      <option value="pa">Punjabi (pa)</option>
+                      <option value="ta">Tamil (ta)</option>
+                      <option value="te">Telugu (te)</option>
+                      <option value="kn">Kannada (kn)</option>
+                      <option value="ml">Malayalam (ml)</option>
+                      <option value="od">Odia (od)</option>
+                      <option value="en">English (en)</option>
+                    </select>
                   </div>
                 </>
               )}

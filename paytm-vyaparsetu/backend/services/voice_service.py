@@ -78,6 +78,7 @@ def process_voice_credit_audio(
     db: Session,
     merchant_id: str,
     audio_bytes: bytes,
+    language_override: str = None,
     filename: str = "audio.wav",
     request_id: str = "N/A"
 ) -> dict:
@@ -86,6 +87,18 @@ def process_voice_credit_audio(
     Audio Upload -> Sarvam STT -> Extraction -> Low Confidence Guard -> Postgres DB -> Number-to-Words -> Sarvam TTS -> Spoken Audio & JSON
     """
     logger.info(f"[{request_id}] process_voice_credit_audio start: merchant_id='{merchant_id}', filename='{filename}', size={len(audio_bytes)} bytes")
+
+    # Resolve language
+    from db.repositories import merchants_repo
+    merchant = merchants_repo.get_merchant_by_id(db, merchant_id)
+    if not merchant:
+        raise AppException(
+            code=ErrorCode.MERCHANT_NOT_FOUND,
+            message="Merchant not found",
+            status_code=404
+        )
+    
+    stt_lang = language_override if language_override else merchant.preferred_language
 
     # Step A (Input Guard)
     logger.debug(f"[{request_id}] Stage 1 (Input Guard): checking audio clip size={len(audio_bytes)} bytes")
@@ -98,8 +111,8 @@ def process_voice_credit_audio(
         )
 
     # Step B (STT)
-    logger.info(f"[{request_id}] Stage 2 (Sarvam STT): transcribing audio clip...")
-    stt_res = sarvam.transcribe_audio(audio_bytes=audio_bytes, filename=filename, request_id=request_id)
+    logger.info(f"[{request_id}] Stage 2 (Sarvam STT): transcribing audio clip with lang='{stt_lang}'...")
+    stt_res = sarvam.transcribe_audio(audio_bytes=audio_bytes, filename=filename, request_id=request_id, language=stt_lang)
     raw_transcript = stt_res.get("transcript", "")
     logger.info(f"[{request_id}] Stage 2 Result: raw_transcript='{raw_transcript}'")
     if not raw_transcript.strip():
@@ -169,8 +182,8 @@ def process_voice_credit_audio(
         raise
 
     # Step F (Spoken Feedback Generation)
-    hindi_words = sarvam.number_to_hindi_words(amount)
-    confirmation_text = f"{customer.display_name} ji ke khate mein {hindi_words} rupaye jod diye gaye hain."
+    formatted_amount = sarvam.format_inr_text(amount)
+    confirmation_text = f"{customer.display_name} ji ke khate mein {formatted_amount} rupaye jod diye gaye hain."
     logger.info(f"[{request_id}] Stage 6 (Spoken Audio TTS): formatted spoken text='{confirmation_text}'")
 
     try:

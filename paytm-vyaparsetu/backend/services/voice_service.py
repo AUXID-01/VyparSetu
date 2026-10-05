@@ -169,8 +169,8 @@ def process_voice_credit_audio(
         raise
 
     # Step F (Spoken Feedback Generation)
-    hindi_words = sarvam.number_to_hindi_words(amount)
-    confirmation_text = f"{customer.display_name} ji ke khate mein {hindi_words} rupaye jod diye gaye hain."
+    formatted_amount = sarvam.format_inr_text(amount)
+    confirmation_text = f"{customer.display_name} ji ke khate mein {formatted_amount} rupaye jod diye gaye hain."
     logger.info(f"[{request_id}] Stage 6 (Spoken Audio TTS): formatted spoken text='{confirmation_text}'")
 
     try:

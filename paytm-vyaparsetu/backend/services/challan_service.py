@@ -145,47 +145,10 @@ def confirm_challan(db: Session, merchant_id: str, payload: Dict[str, Any], requ
     }
 
 
-def settle_invoice(db: Session, invoice_id: str, request_id: str) -> Dict[str, Any]:
+def settle_invoice(db: Session, invoice_id: str, request_id: str = "N/A") -> Dict[str, Any]:
     invoice = db.query(Invoice).filter(Invoice.invoice_id == invoice_id).first()
     if not invoice:
         raise AppException(code="INVOICE_NOT_FOUND", message="Invoice not found", status_code=404)
         
-    if invoice.is_paid:
-        return {"payout_status": "SUCCEEDED", "payout_reference": invoice.payout_reference}
-        
-    available = get_merchant_available_settlement_balance(db, invoice.merchant_id)
-    if Decimal(str(invoice.total_amount)) > available:
-        raise AppException(
-            code="INSUFFICIENT_FUNDS",
-            message="Settlement balance insufficient to clear payout",
-            status_code=400
-        )
-        
-    # Route this through n8n Vendor Payout webhook
-    try:
-        payload = {
-            "invoice_id": invoice.invoice_id,
-            "merchant_id": invoice.merchant_id,
-            "amount": float(invoice.total_amount),
-            "distributor_name": invoice.distributor.name if invoice.distributor else "Unknown"
-        }
-        
-        logger.info(f"💸 [Payout] Triggering n8n payout webhook for invoice {invoice_id} -> {payload}")
-        url = getattr(settings, "N8N_VENDOR_PAYOUT_WEBHOOK_URL", "http://localhost:5678/webhook/vendor-payout")
-        res = httpx.post(url, json=payload, timeout=10.0)
-        
-        if res.status_code in (200, 201, 202):
-            status = "INITIATED"
-        else:
-            logger.warning(f"[{request_id}] Webhook responded with {res.status_code}")
-            status = "FAILED"
-            
-    except Exception as e:
-        logger.warning(f"[{request_id}] n8n Webhook unreachable, simulating local success fallback. {e}")
-        status = "INITIATED"
-        
-    if status == "INITIATED":
-        # Keep is_paid = False, n8n will hit callback
-        return {"payout_status": "INITIATED", "payout_reference": f"PENDING-{invoice.invoice_id}"}
-    else:
-        return {"payout_status": "FAILED", "failure_reason": "Webhook dispatch failed"}
+    from workers.payout_worker import settle_vendor_invoice
+    return settle_vendor_invoice(invoice_id=invoice.invoice_id, merchant_id=invoice.merchant_id)

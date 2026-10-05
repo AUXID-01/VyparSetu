@@ -24,11 +24,6 @@ class Settings(BaseSettings):
     
     PORT: int = 8000
     ENVIRONMENT: str = "development"
-    
-    N8N_PAYMENT_LINK_WEBHOOK_URL: str = "http://localhost:5678/webhook/payment-link"
-    N8N_VENDOR_PAYOUT_WEBHOOK_URL: str = "http://localhost:5678/webhook/vendor-payout"
-    N8N_ALERT_DISPATCH_WEBHOOK_URL: str = "http://localhost:5678/webhook/alert-dispatch"
-    N8N_ONBOARDING_WEBHOOK_URL: str = "http://localhost:5678/webhook/merchant-onboarding"
 
     @field_validator("SARVAM_API_KEY", "GROQ_API_KEY", "GOOGLE_VISION_API_KEY", "INTERNAL_TOKEN", "VOICE_CONFIRMATION_SECRET", mode="before")
     def check_not_empty(cls, v, info):

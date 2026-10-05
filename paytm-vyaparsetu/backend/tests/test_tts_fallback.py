@@ -23,7 +23,7 @@ def test_tts_failure_surfacing(db):
     # Pre-create merchant to satisfy foreign key
     merchant = db.query(Merchant).filter_by(merchant_id=merchant_id).first()
     if not merchant:
-        db.add(Merchant(merchant_id=merchant_id, shop_name="TTS Test", owner_name="TTS", phone="9999999999"))
+        db.add(Merchant(merchant_id=merchant_id, shop_name="TTS Test", owner_name="TTS", phone="9999999988"))
         db.commit()
     
     audio_bytes = b"fake" * 1000

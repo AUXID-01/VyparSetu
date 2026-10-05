@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request, BackgroundTasks
+from fastapi import APIRouter, Depends, Request, BackgroundTasks, Body
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -8,6 +8,7 @@ from core.errors import success_envelope, AppException, ErrorCode
 from core.logging import get_logger
 import db.repositories.outbox_repo as outbox_repo
 from services import payment_service
+import memory
 
 logger = get_logger("api.routes.internal")
 
@@ -254,6 +255,7 @@ def provision_merchant_dataset(
         "shop_name": merchant.shop_name,
         "phone": merchant.phone,
         "welcome_message": welcome_message,
+        "dataset_name": getattr(merchant, "cognee_dataset", None) or f"merchant_{merchant.merchant_id}",
         "status": "PROVISIONED"
     }
     
@@ -280,7 +282,8 @@ def log_system_error(
             merchant_id="SYSTEM",
             shop_name="VyaparSetu System",
             owner_name="System",
-            phone="0000000000"
+            phone="0000000000",
+            cognee_dataset="system_dataset"
         )
         db.add(system_merchant)
         db.flush()
@@ -314,10 +317,14 @@ def log_system_error(
     return success_envelope(result_data)
 
 
-@router.api_route("/memory/sync", methods=["GET", "POST"])
-def dummy_memory_sync():
-    """Dummy endpoint to gracefully handle legacy n8n outbox poller requests."""
-    return {"status": "ok", "message": "Memory sync decommissioned (pure PostgreSQL mode active)"}
+@router.post("/memory/sync")
+async def dummy_memory_sync(payload: dict = Body(...)):
+    """Handles legacy memory sync requests."""
+    evt_id = payload.get("event_id")
+    dataset = memory.get_dataset_for_merchant(payload.get("merchant_id", "default"))
+    await memory.remember_transaction(dataset, payload.get("payload", {}))
+    await memory.cognify_dataset(dataset)
+    return success_envelope({"event_id": evt_id, "status": "COGNIFIED"})
 
 
 

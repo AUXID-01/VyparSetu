@@ -48,7 +48,7 @@ def seed():
         _merchant(
             db, merchant_id=MER_GUPTA,
             shop_name="Gupta Provision Store", owner_name="Ramesh Gupta",
-            phone="+919876500001", cognee_dataset=f"merchant_{MER_GUPTA}",
+            phone="+919876500001", preferred_language="hi",
         )
 
         _customer(db, customer_id=CUS_SURESH, merchant_id=MER_GUPTA,
@@ -95,7 +95,7 @@ def seed():
         _merchant(
             db, merchant_id=MER_SHINDE,
             shop_name="Shinde Dairy & Bakery", owner_name="Tukaram Shinde",
-            phone="+919876500002", cognee_dataset=f"merchant_{MER_SHINDE}",
+            phone="+919876500002", preferred_language="mr",
         )
 
         _customer(db, customer_id=CUS_GANESH, merchant_id=MER_SHINDE,
@@ -124,8 +124,10 @@ def seed():
 # HELPER FUNCTIONS FOR DIRECT DB INSERTS (BYPASSING REPOS FOR FIXED IDS)
 # =========================================================================
 
-def _merchant(db, merchant_id, shop_name, owner_name, phone, cognee_dataset):
-    m = Merchant(merchant_id=merchant_id, shop_name=shop_name, owner_name=owner_name, phone=phone, cognee_dataset=cognee_dataset)
+def _merchant(db, merchant_id, shop_name, owner_name, phone, preferred_language, cognee_dataset=None):
+    # Ignoring cognee_dataset if it's not in the model anymore, or passing it if it is.
+    # To be safe, we just set what we need.
+    m = Merchant(merchant_id=merchant_id, shop_name=shop_name, owner_name=owner_name, phone=phone, preferred_language=preferred_language)
     db.add(m)
 
 def _customer(db, customer_id, merchant_id, display_name, canonical_key, phone):

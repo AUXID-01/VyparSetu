@@ -41,3 +41,16 @@ class PayoutStatus(StrEnum):
 class QuerySource(StrEnum):
     CACHE = "CACHE"
     LIVE = "LIVE"
+
+class LanguageCode(StrEnum):
+    HINDI = "hi"
+    MARATHI = "mr"
+    BENGALI = "bn"
+    GUJARATI = "gu"
+    TAMIL = "ta"
+    TELUGU = "te"
+    KANNADA = "kn"
+    MALAYALAM = "ml"
+    PUNJABI = "pa"
+    ODIA = "od"
+    ENGLISH = "en"

@@ -9,11 +9,14 @@ from core.errors import AppException, ErrorCode, success_envelope
 
 router = APIRouter()
 
+from core.enums import LanguageCode
+
 class MerchantCreateReq(BaseModel):
     shop_name: str
     owner_name: str
     phone: str
     password: str
+    preferred_language: LanguageCode
 
 class MerchantLoginReq(BaseModel):
     phone: str
@@ -32,7 +35,8 @@ def create_merchant(req: MerchantCreateReq, background_tasks: BackgroundTasks, d
         db=db,
         shop_name=req.shop_name,
         owner_name=req.owner_name,
-        phone=req.phone
+        phone=req.phone,
+        preferred_language=req.preferred_language
     )
     
     def trigger_n8n_onboarding(merchant_id: str, shop_name: str, phone: str):

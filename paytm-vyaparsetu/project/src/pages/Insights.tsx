@@ -1,15 +1,70 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { insightService } from '../services/insightService';
 import { useAuth } from '../contexts/AuthContext';
-import { Search, Sparkles, TrendingUp, AlertCircle, ArrowRight, Clock } from 'lucide-react';
+import { Search, Sparkles, TrendingUp, AlertCircle, ArrowRight, Clock, Mic, Square } from 'lucide-react';
 
 export const Insights: React.FC = () => {
   const { auth } = useAuth();
   const [query, setQuery] = useState('');
   const [state, setState] = useState<'IDLE' | 'THINKING' | 'ANSWERED'>('IDLE');
   const [answer, setAnswer] = useState<{ text: string, source: string, latency: number } | null>(null);
+  
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      chunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        stream.getTracks().forEach(track => track.stop());
+        await processAudioForTranscription(audioBlob);
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Microphone error:", err);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const processAudioForTranscription = async (audioBlob: Blob) => {
+    setState('THINKING');
+    try {
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'recording.webm');
+      const { apiClient } = await import('../services/apiClient');
+      const res = await apiClient.post('/voice/transcribe', formData, true);
+      
+      if (res && res.data && res.data.transcript) {
+         setQuery(res.data.transcript);
+         handleAsk(undefined, res.data.transcript);
+      } else {
+         setState('IDLE');
+      }
+    } catch (err) {
+      console.error("Transcription failed:", err);
+      setState('IDLE');
+    }
+  };
 
   const handleAsk = async (e?: React.FormEvent, directQuery?: string) => {
     if (e) e.preventDefault();
@@ -75,10 +130,19 @@ export const Insights: React.FC = () => {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Ask about your business... e.g. 'Which supplier increased prices the most?'" 
-            className="w-full pl-12 pr-32 py-4 bg-white border border-sage-200 rounded-2xl text-base focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-400 transition-all placeholder:text-ink-300 shadow-soft"
+            className="w-full pl-12 pr-[200px] py-4 bg-white border border-sage-200 rounded-2xl text-base focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-400 transition-all placeholder:text-ink-300 shadow-soft"
           />
-          <div className="absolute right-2 top-1/2 -translate-y-1/2">
-            <Button type="submit" size="sm" disabled={!query.trim() || state === 'THINKING'}>
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
+            {!isRecording ? (
+              <Button type="button" variant="outline" size="sm" onClick={startRecording} className="text-sage-600 border-sage-200 hover:bg-sage-50" title="Ask by Voice">
+                <Mic className="w-4 h-4" />
+              </Button>
+            ) : (
+              <Button type="button" variant="primary" size="sm" onClick={stopRecording} className="bg-danger hover:bg-danger/90 border-transparent animate-pulse text-white">
+                <Square className="w-4 h-4 fill-current mr-1.5" /> Stop
+              </Button>
+            )}
+            <Button type="submit" size="sm" disabled={!query.trim() || state === 'THINKING' || isRecording}>
               Analyze
             </Button>
           </div>

@@ -21,6 +21,16 @@ export const Insights: React.FC = () => {
     try {
       const res = await insightService.ask(auth.merchantId, q);
       setAnswer({ text: res.answer, source: res.source, latency: res.generated_in_ms });
+      
+      // Play the spoken audio response if the backend returned it!
+      if (res.answer_audio_b64) {
+        try {
+          const audio = new Audio(`data:audio/wav;base64,${res.answer_audio_b64}`);
+          audio.play();
+        } catch (audioErr) {
+          console.error("Failed to play audio:", audioErr);
+        }
+      }
     } catch (err) {
       console.error(err);
       setAnswer({ text: "Sorry, I couldn't analyze that right now.", source: "ERROR", latency: 0 });

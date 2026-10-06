@@ -19,8 +19,9 @@ For decades, Indian SMBs and Kirana store owners have relied on the traditional 
    - Extracts all individual SKUs, quantities, and prices automatically.
    - **Rate-Spike Detection:** Instantly cross-references prices with historical SQL records to alert the merchant if a distributor secretly increased wholesale prices.
 
-3. 🧠 **Conversational Intelligence**
-   No complex dashboards. Merchants can simply ask *"Suresh ka kitna baaki hai?"* or *"Who is my best distributor?"* and the underlying LLM dynamically queries the database to provide an instant, accurate answer.
+3. 🧠 **Conversational Intelligence (End-to-End Voice QA)**
+   No complex dashboards. Merchants can simply tap the microphone and ask *"Suresh ka kitna baaki hai?"* or *"Who is my best distributor?"* 
+   - The system instantly transcribes the query, dynamically queries the database via LLM, and **speaks the answer back out loud** so the merchant doesn't even have to look at the screen.
 
 4. ⚡ **Native Asynchronous Automation**
    Outbox events, vendor payouts, and WhatsApp/SMS alerts are routed asynchronously through an in-house Python native worker system—ensuring lightning-fast UI responses.

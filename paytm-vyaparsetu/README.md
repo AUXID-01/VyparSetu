@@ -1,135 +1,88 @@
-# Paytm VyaparSetu
+# Paytm VyaparSetu 🚀
 
-## Setup & Operations Guides
+VyaparSetu is an AI-powered financial operating system designed for Indian SMBs (kirana stores, wholesalers). It bridges the gap between traditional manual bookkeeping and modern digital ledgers by using cutting-edge AI for Voice, Vision, and Conversational intelligence.
 
-- **[docs/SETUP_GUIDE.md](file:///c:/VyaparSetu/VyparSetu/paytm-vyaparsetu/docs/SETUP_GUIDE.md)** — Installation, environment setup, database container launch, and testing instructions.
-- **[POSTGRES_OPS_GUIDE.md](file:///c:/VyaparSetu/VyparSetu/paytm-vyaparsetu/POSTGRES_OPS_GUIDE.md)** — Developer guide for PostgreSQL Docker CLI access, GUI tool parameters, SQL queries, reset commands, and data seeding scripts.
-- **[docs/CHALLAN_SCHEMA_MIGRATION_GUIDE.md](file:///c:/VyaparSetu/VyparSetu/paytm-vyaparsetu/docs/CHALLAN_SCHEMA_MIGRATION_GUIDE.md)** — Multi-format Challan Schema Extension, Pydantic Stage A-D schemas, Alembic migrations, and database verification.
-- **[docs/vyaparsetu-challan-schema-vision-stack.md](file:///c:/VyaparSetu/VyparSetu/paytm-vyaparsetu/docs/vyaparsetu-challan-schema-vision-stack.md)** — Multi-format Challan Vision Stack specification & cost-conscious escalation routing.
+## 🌟 Key Features
 
+### 🎙️ AI Voice Pipeline (Khata by Voice)
+Merchants can record a voice note (e.g., *"Suresh ko 50 rupaye ka udhaar diya"*) to instantly log ledger entries.
+- **Multi-lingual Support**: Native integration with Sarvam AI supports Hindi, Marathi, Bengali, and more based on the merchant's `preferred_language`.
+- **Financial Safety (Atomic Writes)**: Voice transactions are wrapped in strict SQL `savepoints` ensuring that ledger balances and outbox events either succeed entirely or roll back safely.
+- **Human-in-the-Loop (HITL)**: If the AI is uncertain about the extracted entities (low confidence due to background noise), the system intercepts the database write and returns a cryptographically signed JWT token to the frontend. The transaction only proceeds when the user taps "Confirm".
+- **Smart Formatting**: Converts messy spoken numbers into clean INR formatting automatically.
 
-## Folder Skeleton & Architecture Overview
+### 📄 AI Vision Pipeline (Challan OCR)
+Automates the tedious task of manual invoice entry.
+- **Handwritten & Printed Support**: Upload an image of a challan or invoice. The Vision Stack extracts distributor names, individual items, quantities, and unit prices.
+- **Rate-Spike Detection**: Automatically cross-references extracted item prices against historical SQL records for that specific distributor to flag sudden price hikes.
+- **Payout Integration**: Drafts automated vendor payouts upon successful challan verification.
 
-```
-paytm-vyaparsetu/
-├── .env.example
-├── .gitignore
-├── README.md
-├── docker-compose.yml              # Local dev stack (db, backend, frontend, mock-paytm)
-├── docker-compose.override.yml     # Local mounts & debug flags (gitignored)
-│
-├── deploy/                         # Production & container deployment assets
-│   ├── docker/
-│   │   ├── Dockerfile.backend
-│   │   ├── Dockerfile.frontend
-│   │   └── Dockerfile.mock_paytm
-│   ├── nginx/
-│   │   └── nginx.conf              # Reverse proxy handling /api -> backend, / -> frontend
-│   └── scripts/
-│       ├── seed_db.sh              # Populates initial demo merchants & catalog
-│       └── wait_for_postgres.sh
-│
-├── frontend/                       # Exported directly from Bolt.new / Lovable
-│
-└── backend/
-    ├── main.py                     # FastAPI entrypoint & router aggregation
-    ├── config.py                   # Pydantic BaseSettings (env, credentials, webhooks)
-    ├── requirements.txt
-    │
-    ├── api/
-    │   ├── __init__.py
-    │   ├── deps.py                 # DB session injection, Auth & X-Internal-Token checks
-    │   └── routes/
-    │       ├── __init__.py
-    │       ├── merchants.py        # Provisioning, profiles, Soundbox settings
-    │       ├── voice.py            # POST /v1/voice/log-credit
-    │       ├── challan.py          # POST /v1/challan/extract & confirm
-    │       ├── query.py            # GET /v1/query/summary (strictly reads Postgres cache)
-    │       ├── internal.py         # n8n hooks: /internal/outbox/pending, /synced
-    │       └── health.py           # Container readiness & liveness probes
-    │
-    ├── db/
-    │   ├── __init__.py             # Exports get_db session dependency
-    │   ├── session.py              # SQLAlchemy engine & sessionmaker
-    │   ├── models.py               # ORM mapping matching schema exactly
-    │   ├── migrations/             # Alembic migration revisions
-    │   └── repositories/           # Isolated data access objects (no business logic)
-    │       ├── __init__.py
-    │       ├── merchants_repo.py
-    │       ├── customers_repo.py   # Identity resolution (phone -> customer_id)
-    │       ├── ledger_repo.py      # Canonical balance math
-    │       ├── invoices_repo.py    # SQL single-fact last-rate lookup
-    │       ├── outbox_repo.py      # Transactional outbox pattern reads/writes
-    │       ├── insight_cache_repo.py
-    │       └── alerts_repo.py
-    │
-    ├── sarvam/                     # Indic Speech-to-Text & Text-to-Speech
-    │   ├── __init__.py             # Façade: transcribe_audio(), synthesize_speech()
-    │   ├── client.py
-    │   ├── stt.py
-    │   ├── tts.py
-    │   └── tests/
-    │
-    ├── vision/                     # Document AI / Challan OCR
-    │   ├── __init__.py             # Façade: extract_challan(image_bytes) -> dict
-    │   ├── client.py
-    │   ├── prompts.py
-    │   └── tests/
-    │
-    ├── extraction/                 # Conversational entity parsing (Hindi/Hinglish)
-    │   ├── __init__.py             # Façade: extract_entities(transcript) -> dict
-    │   ├── client.py
-    │   ├── prompts.py
-    │   └── tests/
-    │
-    ├── memory/                     # Background Cognee intelligence layer
-    │   ├── __init__.py             # Façade: remember_event(), ask_background_insights()
-    │   ├── ontology.py             # Pydantic schemas for Cognee cognify()
-    │   ├── graph_client.py
-    │   ├── dataset_manager.py      # Isolated merchant_<id> provisioning
-    │   ├── queries.py
-    │   └── tests/
-    │
-    ├── orchestrator/               # n8n Cloud Webhook triggers & bridges
-    │   ├── __init__.py             # Façade: dispatch_payment_link(), trigger_payout()
-    │   ├── n8n_client.py
-    │   ├── outbox_poller_support.py
-    │   └── tests/
-    │
-    ├── services/                   # Business logic orchestrators (multi-package coordinators)
-    │   ├── __init__.py
-    │   ├── voice_service.py        # Audio -> Sarvam -> Extraction -> DB -> Outbox
-    │   ├── challan_service.py      # Vision -> SQL Rate-Spike check -> Payout draft
-    │   ├── query_service.py        # Cached summary fetch with stale fallback
-    │   └── merchant_service.py
-    │
-    ├── core/                       # Shared platform primitives
-    │   ├── __init__.py
-    │   ├── ids.py                  # Prefixed ID generators (mer_, txn_, out_)
-    │   ├── errors.py               # Custom exceptions & HTTP exception handlers
-    │   ├── enums.py                # TransactionStatus, OutboxStatus, AlertType
-    │   └── auth.py                 # Token validation
-    │
-    ├── mock_services/
-    │   └── mock_paytm/             # Standalone service mimicking Paytm Payouts & Soundbox
-    │       ├── __init__.py
-    │       ├── main.py             # Tiny FastAPI app on port 8001
-    │       └── requirements.txt
-    │
-    └── tests/
-        ├── conftest.py
-        └── test_integration_e2e.py # Counter-speed E2E tests (Voice & Challan fast-path)
+### 🧠 Conversational QA (End-to-End Voice BI)
+Merchants can "chat" with their business data. The LLM toolsets can dynamically answer natural language queries about distributor supply chains, individual customer balances, and historical challan metadata.
+- **Fully Voice Powered**: Merchants can simply tap the microphone in the Business Insights tab, speak a question, and the system will instantly respond by speaking the answer out loud using Sarvam TTS.
+
+### ⚙️ Native Background Workers
+Replaced external dependencies (like n8n) with a robust, native asynchronous worker architecture running entirely within Python.
+- **Outbox Worker**: Guarantees delivery of webhook payloads.
+- **Payout Worker**: Dispatches vendor payments asynchronously.
+- **Notification Worker**: Sends SMS/WhatsApp alerts for outbox events.
+
+---
+
+## 🛠️ Tech Stack
+
+- **Backend**: Python, FastAPI, SQLAlchemy, Alembic (Migrations)
+- **Database**: PostgreSQL (Cloud hosted via Supabase)
+- **AI / LLMs**: Groq (Llama 3), Google Cloud Vision, Sarvam AI (Indic STT/TTS)
+- **Frontend**: React (Vite / Bolt.new)
+
+---
+
+## 🚀 Quick Start Guide
+
+### 1. Environment Setup
+Create a `.env` file in the `backend/` directory using `.env.example` as a template.
+Ensure you add your API keys and your Supabase connection string:
+```ini
+DATABASE_URL=postgresql://postgres.[project-id]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres
+GROQ_API_KEY=your_key
+SARVAM_API_KEY=your_key
+GOOGLE_VISION_API_KEY=your_key
+VOICE_CONFIRMATION_SECRET=any_random_secure_string
 ```
 
-## Key Architecture & Docker Strategy Notes
+### 2. Database Migrations
+VyaparSetu uses Alembic to manage database schema. Since you are connecting to a cloud database (like Supabase), simply apply the migrations:
+```bash
+cd backend
+alembic upgrade head
+```
 
-1. **Local Network Isolation**:
-   In `docker-compose.yml`, `frontend`, `backend`, `postgres`, and `mock_paytm` run on a single bridge network (`vyaparsetu-net`).
+### 3. Seed Demo Data
+Populate your cloud database with demo merchants, distributors, and historical ledger data to test the UI:
+```bash
+python -m scripts.seed_demo
+```
 
-2. **Port Allocation**:
-   - `Frontend`: Port `3000`
-   - `Backend API`: Port `8000`
-   - `mock_paytm`: Port `8001` (Isolated microservice simulating Paytm Payouts & Soundbox core gateway without polluting main app routes).
+### 4. Run the Application
+Start the FastAPI backend:
+```bash
+uvicorn main:app --reload
+```
 
-3. **Outbox Reliability**:
-   `n8n Cloud` reaches local/staged FastAPI instance via tunnel or hosted URL targeting `/api/v1/internal/outbox/pending`, pulling records cleanly out of `outbox_repo.py`.
+Start the React frontend (in a separate terminal):
+```bash
+cd project
+npm install
+npm run dev
+```
+
+---
+
+## 📂 Architecture Note
+* **`backend/api/`**: FastAPI routes and endpoints.
+* **`backend/db/`**: SQLAlchemy models, Repositories, and Alembic migrations.
+* **`backend/services/`**: Core business logic and orchestration.
+* **`backend/workers/`**: Asynchronous background tasks (Outbox, Payouts).
+* **`backend/sarvam/ & vision/`**: Wrappers for external AI provider APIs.
+* **`project/src/pages/Insights.tsx`**: Location of the new end-to-end Voice QA dictation and playback feature.
